@@ -1,10 +1,18 @@
 ﻿import argparse
+import contextlib
 import csv
 import datetime
+import http.server
 import json
 import os
+import re
+import shutil
+import socketserver
+import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 
@@ -691,6 +699,360 @@ class TestE3T03DocumentationAndXlsm(BasePOTestCase):
         self.assertEqual(ws_s10["B11"].value, 11)
 
 
+class _QuietRepoHTTPHandler(http.server.SimpleHTTPRequestHandler):
+    """Serve REPO_ROOT files silently during automated headless browser checks."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory=str(REPO_ROOT), **kwargs)
+
+    def log_message(self, format: str, *args) -> None:
+        return None
+
+
+def _find_chromium_binary() -> str | None:
+    """Locate an installed Chrome or Edge binary for headless browser tests."""
+    candidates = [
+        shutil.which("chrome"),
+        shutil.which("msedge"),
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+    ]
+    for cand in candidates:
+        if cand and Path(cand).exists():
+            return str(cand)
+    return None
+
+
+class TestE4T01PortfolioCore(BasePOTestCase):
+    """Casos de Teste TC-E4-01A e TC-E4-01B (Portfolio Web Secoes 1 a 3 + KaTeX)."""
+
+    def test_tc_e4_01a_portfolio_structure_katex_and_static_contracts(self) -> None:
+        html_path = REPO_ROOT / "index.html"
+        css_path = REPO_ROOT / "web" / "css" / "styles.css"
+        js_path = REPO_ROOT / "web" / "js" / "app.js"
+        katex_dir = REPO_ROOT / "web" / "vendor" / "katex"
+
+        for asset in (
+            html_path,
+            css_path,
+            js_path,
+            katex_dir / "katex.min.css",
+            katex_dir / "katex.min.js",
+            katex_dir / "contrib" / "auto-render.min.js",
+        ):
+            self.assertTrue(asset.exists(), f"Asset obrigatorio ausente: {asset}")
+
+        katex_css = (katex_dir / "katex.min.css").read_text(encoding="utf-8")
+        font_refs = re.findall(r"url\((fonts/[^)]+\.woff2)\)", katex_css)
+        self.assertGreaterEqual(len(font_refs), 20)
+        for rel_font in font_refs:
+            self.assertTrue((katex_dir / rel_font).exists(), f"Fonte KaTeX ausente: {rel_font}")
+
+        html_text = html_path.read_text(encoding="utf-8")
+        css_text = css_path.read_text(encoding="utf-8")
+        js_text = js_path.read_text(encoding="utf-8")
+
+        for filename, content in (("index.html", html_text), ("styles.css", css_text), ("app.js", js_text)):
+            self.assertNotIn("\u2014", content, f"Travessao longo proibido encontrado em {filename}")
+
+        self.assertIn('lang="pt-BR"', html_text)
+        self.assertEqual(html_text.count("<h1"), 1)
+        for marker in (
+            '<link rel="icon"',
+            "<header",
+            "<nav",
+            "<main",
+            "<footer",
+            "#conteudo-principal",
+            'id="sec-1-contexto"',
+            'id="sec-2-personas"',
+            'id="sec-3-teoria"',
+            'id="sec-4-treinador"',
+            'id="sec-5-goleiro"',
+            'id="sec-6-ponte"',
+            'id="sec-7-arena"',
+            "16.629",
+            "15.726",
+            "1.377",
+            "po_bronze",
+            "po_silver",
+            "po_gold",
+            "Palacios-Huerta",
+            'role="tablist"',
+            'id="tab-treinador"',
+            'id="tab-goleiro"',
+            'id="tab-ladoalado"',
+            'hidden="until-found"',
+            r"\max_{p,\, V}",
+            r"\min_{q,\, W}",
+            r"A_{ij}(\theta)",
+        ):
+            self.assertIn(marker, html_text, f"Marcador ausente em index.html: {marker}")
+
+        self.assertIn("./data/processed/po_penalties_mart.json", js_text)
+        self.assertIn("@layer reset, tokens, base, layout, components, utilities;", css_text)
+        self.assertIn("@media (prefers-reduced-motion: reduce)", css_text)
+        self.assertIn("@media (forced-colors: active)", css_text)
+        self.assertIn("@container (width < 600px)", css_text)
+        self.assertIsNone(re.search(r"^\s*\*\s*[,{]", css_text, re.MULTILINE))
+
+        node_bin = shutil.which("node")
+        if node_bin:
+            syntax = subprocess.run(
+                [node_bin, "--check", str(js_path)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(syntax.returncode, 0, f"Erro de sintaxe JS: {syntax.stderr}")
+
+    def test_tc_e4_01b_browser_render_katex_and_zero_console_errors(self) -> None:
+        if TEST_MODE == "fast":
+            self.skipTest("Modo fast ativo: pulando verificacao em navegador headless.")
+
+        browser_bin = _find_chromium_binary()
+        node_bin = shutil.which("node")
+        if not browser_bin or not node_bin:
+            self.skipTest("Chrome/Edge ou Node indisponivel neste ambiente.")
+
+        class _ReusableServer(socketserver.ThreadingTCPServer):
+            allow_reuse_address = True
+
+        httpd = _ReusableServer(("127.0.0.1", 0), _QuietRepoHTTPHandler)
+        port = httpd.server_address[1]
+        server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        server_thread.start()
+
+        tmp_profile = tempfile.mkdtemp(prefix="po-e4t01-chrome-")
+        proc = subprocess.Popen(
+            [
+                browser_bin,
+                "--headless=new",
+                "--disable-gpu",
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--remote-debugging-port=0",
+                f"--user-data-dir={tmp_profile}",
+                "about:blank",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+        try:
+            port_file = Path(tmp_profile) / "DevToolsActivePort"
+            for _ in range(80):
+                if port_file.exists() and port_file.read_text(encoding="utf-8").strip():
+                    break
+                time.sleep(0.1)
+            self.assertTrue(port_file.exists(), "DevToolsActivePort nao foi criado pelo browser headless.")
+            cdp_lines = port_file.read_text(encoding="utf-8").strip().splitlines()
+            cdp_port = int(cdp_lines[0])
+            ws_path = cdp_lines[1]
+
+            node_script = r"""
+const url = process.argv[1];
+const browserWsUrl = process.argv[2];
+
+(async () => {
+  const listRes = await fetch(`http://127.0.0.1:${new URL(browserWsUrl).port}/json/list`);
+  const targets = await listRes.json();
+  const pageTarget = targets.find((t) => t.type === "page") || targets[0];
+  const ws = new WebSocket(pageTarget.webSocketDebuggerUrl);
+  let seq = 0;
+  const pending = new Map();
+  const events = [];
+
+  const send = (method, params = {}) =>
+    new Promise((resolve, reject) => {
+      const id = ++seq;
+      pending.set(id, { resolve, reject });
+      ws.send(JSON.stringify({ id, method, params }));
+    });
+
+  ws.addEventListener("message", (ev) => {
+    const msg = JSON.parse(ev.data);
+    if (msg.id && pending.has(msg.id)) {
+      const { resolve, reject } = pending.get(msg.id);
+      pending.delete(msg.id);
+      if (msg.error) reject(new Error(JSON.stringify(msg.error)));
+      else resolve(msg.result);
+    } else if (msg.method) {
+      events.push(msg);
+    }
+  });
+
+  await new Promise((r) => ws.addEventListener("open", r));
+  await send("Page.enable");
+  await send("Runtime.enable");
+  await send("Log.enable");
+  await send("Network.enable");
+
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: 1440,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await send("Page.navigate", { url });
+
+  for (let i = 0; i < 40; i++) {
+    const check = await send("Runtime.evaluate", {
+      returnByValue: true,
+      expression: `(document.getElementById("mart-status-badge")?.textContent || "").includes("6 cenarios")`,
+    });
+    if (check.result.value) break;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+
+  const desktopEval = await send("Runtime.evaluate", {
+    returnByValue: true,
+    expression: `(() => {
+      const badge = document.getElementById("mart-status-badge")?.textContent || "";
+      const footerTs = document.getElementById("footer-generated-at")?.textContent || "";
+      const katexCount = document.querySelectorAll(".katex").length;
+      const katexErrors = document.querySelectorAll(".katex-error").length;
+      const isWideDesktop = document.getElementById("site-header").classList.contains("is-wide");
+      const overflow1440 = document.documentElement.scrollWidth > document.documentElement.clientWidth;
+
+      document.getElementById("tab-goleiro").click();
+      const tabGolSelected = document.getElementById("tab-goleiro").getAttribute("aria-selected");
+      const panelGolHidden = document.getElementById("panel-goleiro").hasAttribute("hidden");
+      document.getElementById("tab-treinador").click();
+
+      document.querySelector('.pipeline-step-btn[data-stage="silver-enriched"]').click();
+      const etlText = document.getElementById("pipeline-inspector")?.textContent || "";
+
+      const sel = document.getElementById("theory-scenario-select");
+      sel.value = "C6_MID_DEF";
+      sel.dispatchEvent(new Event("change"));
+      const verifierText = document.getElementById("theory-verifier-metrics")?.textContent || "";
+
+      const themeInput = document.getElementById("theme-switch");
+      const wasChecked = themeInput.checked;
+      themeInput.click();
+      const themeAfter = document.documentElement.dataset.theme;
+      themeInput.click();
+
+      return {
+        badge,
+        footerTs,
+        katexCount,
+        katexErrors,
+        isWideDesktop,
+        overflow1440,
+        tabGolSelected,
+        panelGolHidden,
+        etlHas1377: etlText.includes("1.377"),
+        verifierHas1518: verifierText.includes("15,18%") && verifierText.includes("C6_MID_DEF"),
+        themeToggled: themeAfter === (wasChecked ? "light" : "dark"),
+      };
+    })()`,
+  });
+
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: 390,
+    height: 844,
+    deviceScaleFactor: 1,
+    mobile: true,
+  });
+  await new Promise((r) => setTimeout(r, 250));
+  const m390 = await send("Runtime.evaluate", {
+    returnByValue: true,
+    expression: `({
+      overflow390: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      isWide390: document.getElementById("site-header").classList.contains("is-wide"),
+    })`,
+  });
+
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: 320,
+    height: 640,
+    deviceScaleFactor: 1,
+    mobile: true,
+  });
+  await new Promise((r) => setTimeout(r, 250));
+  const m320 = await send("Runtime.evaluate", {
+    returnByValue: true,
+    expression: `({
+      overflow320: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      sw320: document.documentElement.scrollWidth,
+    })`,
+  });
+
+  const consoleErrors = events.filter(
+    (e) => e.method === "Runtime.consoleAPICalled" && ["error", "warning"].includes(e.params.type)
+  );
+  const exceptions = events.filter((e) => e.method === "Runtime.exceptionThrown");
+  const logErrors = events.filter(
+    (e) => e.method === "Log.entryAdded" && ["error", "warning"].includes(e.params.entry.level)
+  );
+  const httpErrors = events.filter(
+    (e) => e.method === "Network.responseReceived" && e.params.response.status >= 400
+  );
+  const netFails = events.filter((e) => e.method === "Network.loadingFailed");
+
+  console.log(
+    JSON.stringify({
+      desktop: desktopEval.result.value,
+      m390: m390.result.value,
+      m320: m320.result.value,
+      consoleErrors,
+      exceptions,
+      logErrors,
+      httpErrors,
+      netFails,
+    })
+  );
+  ws.close();
+})();
+"""
+            node_run = subprocess.run(
+                [
+                    node_bin,
+                    "-e",
+                    node_script,
+                    f"http://127.0.0.1:{port}/index.html",
+                    f"ws://127.0.0.1:{cdp_port}{ws_path}",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=True,
+            )
+            report = json.loads(node_run.stdout)
+
+            self.assertEqual(report["consoleErrors"], [], f"Console errors: {report['consoleErrors']}")
+            self.assertEqual(report["exceptions"], [], f"JS exceptions: {report['exceptions']}")
+            self.assertEqual(report["logErrors"], [], f"Browser log errors: {report['logErrors']}")
+            self.assertEqual(report["httpErrors"], [], f"HTTP >=400 errors: {report['httpErrors']}")
+            self.assertEqual(report["netFails"], [], f"Network failures: {report['netFails']}")
+
+            desk = report["desktop"]
+            self.assertIn("6 cenarios | 66 pts theta | 10 atletas", desk["badge"])
+            self.assertIn("UTC", desk["footerTs"])
+            self.assertGreaterEqual(desk["katexCount"], 15)
+            self.assertEqual(desk["katexErrors"], 0)
+            self.assertTrue(desk["isWideDesktop"])
+            self.assertFalse(desk["overflow1440"])
+            self.assertEqual(desk["tabGolSelected"], "true")
+            self.assertFalse(desk["panelGolHidden"])
+            self.assertTrue(desk["etlHas1377"])
+            self.assertTrue(desk["verifierHas1518"])
+            self.assertTrue(desk["themeToggled"])
+
+            self.assertFalse(report["m390"]["overflow390"])
+            self.assertFalse(report["m390"]["isWide390"])
+            self.assertFalse(report["m320"]["overflow320"], f"Overflow em 320px: {report['m320']}")
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+            with contextlib.suppress(Exception):
+                proc.terminate()
+                proc.wait(timeout=5)
+            shutil.rmtree(tmp_profile, ignore_errors=True)
+
+
 STAGE_REGISTRY: dict[str, list[type[unittest.TestCase]]] = {
     "E1": [TestE1Governance],
     "E2-T01": [TestE2T01BronzeIngestion],
@@ -701,6 +1063,8 @@ STAGE_REGISTRY: dict[str, list[type[unittest.TestCase]]] = {
     "E3-T02": [TestE3T02SensitivityScouting],
     "E3-T03": [TestE3T03DocumentationAndXlsm],
     "E3": [TestE3T01GoldNashSolver, TestE3T02SensitivityScouting, TestE3T03DocumentationAndXlsm],
+    "E4-T01": [TestE4T01PortfolioCore],
+    "E4": [TestE4T01PortfolioCore],
     "ALL": [
         TestE1Governance,
         TestE2T01BronzeIngestion,
@@ -709,6 +1073,7 @@ STAGE_REGISTRY: dict[str, list[type[unittest.TestCase]]] = {
         TestE3T01GoldNashSolver,
         TestE3T02SensitivityScouting,
         TestE3T03DocumentationAndXlsm,
+        TestE4T01PortfolioCore,
     ],
 }
 

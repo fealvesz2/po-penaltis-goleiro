@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Portfolio do Grupo 11 (UFABC Q3/2026) em Pesquisa Operacional Aplicada: otimizacao da decisao de goleiros em penaltis via Teoria dos Jogos e Programacao Linear Primal-Dual.">
+  <title>Portfolio PO Aplicada | Goleiros em Penaltis (Grupo 11 UFABC)</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23046c4e'/%3E%3Ctext x='16' y='21' text-anchor='middle' font-family='monospace' font-size='14' font-weight='700' fill='%23ffffff'%3EG11%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./web/vendor/katex/katex.min.css">
+  <link rel="stylesheet" href="./web/css/styles.css">
+  <script defer src="./web/vendor/katex/katex.min.js"></script>
+  <script defer src="./web/vendor/katex/contrib/auto-render.min.js"></script>
+  <script defer src="./web/js/app.js"></script>
+</head>
+<body>
+  <a class="skip-link visually-hidden" href="#conteudo-principal">Ir para o conteudo principal</a>
+
+  <header class="site-header" id="site-header">
+    <div class="header-inner">
+      <a class="site-logo" href="#topo" aria-label="Inicio do Portfolio Grupo 11 PO Aplicada">
+        <span class="brand-badge" aria-hidden="true">G11</span>
+        <span class="brand-text">
+          <strong>PO Aplicada UFABC</strong>
+          <small>Penaltis | Soma Zero 3x3</small>
+        </span>
+      </a>
+
+      <nav class="site-nav" aria-label="Secoes do portfolio">
+        <button
+          class="menu-button"
+          type="button"
+          popovertarget="site-menu"
+          popovertargetaction="toggle"
+          aria-controls="site-menu"
+          aria-expanded="false"
+        >
+          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+          <span>Menu</span>
+        </button>
+
+        <ul id="site-menu" class="site-menu" popover="auto">
+          <li><a href="#sec-1-contexto" aria-current="page">1. Contexto &amp; ETL</a></li>
+          <li><a href="#sec-2-personas">2. Personas</a></li>
+          <li><a href="#sec-3-teoria">3. Teoria PL</a></li>
+          <li><a href="#sec-4-treinador">4. Treinador</a></li>
+          <li><a href="#sec-5-goleiro">5. Goleiro</a></li>
+          <li><a href="#sec-6-ponte">6. Ponte</a></li>
+          <li><a href="#sec-7-arena">7. Arena</a></li>
+        </ul>
+      </nav>
+
+      <label class="theme-switch-label" for="theme-switch">
+        <span>Tema escuro</span>
+        <input id="theme-switch" class="theme-switch-input" type="checkbox" switch>
+      </label>
+    </div>
+  </header>
+
+  <main id="conteudo-principal" tabindex="-1">
+    <section id="topo" class="hero-band">
+      <div class="container">
+        <div class="hero-meta">
+          <span class="pill pill-accent">UFABC Q3/2026 | Profa. Carolina Correa de Carvalho</span>
+          <span class="pill" id="mart-status-badge" aria-live="polite">Carregando telemetria BigQuery Gold...</span>
+        </div>
+
+        <h1>Decisao Otima de Goleiros em Penaltis por Teoria dos Jogos e Programacao Linear</h1>
+        <p class="hero-lead">
+          Substituicao integral de escolhas intuitivas e premissas sinteticas por coordenadas reais de chute e salto no Google BigQuery
+          (<strong data-kpi="bronze-rows">16.629</strong> cobrancas brutas -> <strong data-kpi="silver-rows">15.726</strong> limpas -> <strong data-kpi="spatial-rows">1.377</strong> espaciais),
+          equilibrando protecao Minimax \(\left(V^*(0)\right)\) e exploracao de scouting \((\theta)\) para o Treinador de Goleiros e o Goleiro em campo.
+        </p>
+
+        <div class="team-bar">
+          <span><strong>Grupo 11:</strong> Isabella Paulino, Camille Bevilaqua e Felipe Alves</span>
+          <span><strong>Base cientifica:</strong> <cite>Palacios-Huerta (2003), Review of Economic Studies</cite></span>
+          <span><strong>Projeto GCP:</strong> <code>dev-plataforma-geral</code> (<code>southamerica-east1</code>)</span>
+        </div>
+
+        <ul class="kpi-grid" aria-label="Indicadores principais do modelo Gold">
+          <li class="kpi-card">
+            <span class="kpi-label">Amostra Espacial Auditada</span>
+            <strong class="kpi-value" data-kpi="spatial-detail">1.377 lances</strong>
+            <span class="kpi-sub" data-kpi="spatial-sub">143 defesas + 58 fora/trave (14,60% nao-gol)</span>
+          </li>
+          <li class="kpi-card">
+            <span class="kpi-label">Valor Minimax Global \(V^*(0)\)</span>
+            <strong class="kpi-value" data-kpi="global-vstar">13,94%</strong>
+            <span class="kpi-sub" data-kpi="global-gap">Gap Primal-Dual = 0.00e+00 (6 cenarios)</span>
+          </li>
+          <li class="kpi-card">
+            <span class="kpi-label">Cobertura Nash no Centro</span>
+            <strong class="kpi-value" data-kpi="global-center">38,1% C</strong>
+            <span class="kpi-sub" data-kpi="global-center-sub">Corrige sub-cobertura real (33,8% empirico)</span>
+          </li>
+          <li class="kpi-card">
+            <span class="kpi-label">Grid Parametrico &amp; Scouting</span>
+            <strong class="kpi-value" data-kpi="gold-coverage">66 pts &theta; | 10 estrelas</strong>
+            <span class="kpi-sub">\(\theta \in [0, 1]\) com validacao Excel Simplex LP</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="sec-1-contexto" class="page-section">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-kicker">Secao 1 | Contexto e Engenharia de Dados</span>
+          <h2>Problema Real e Fluxo Medallion (Kaggle &rarr; BigQuery)</h2>
+          <p class="section-intro">
+            Em disputas de penaltis no futebol profissional, o goleiro precisa iniciar o movimento antes de confirmar a direcao da bola.
+            Se pular sempre para o mesmo canto ou seguir a intuicao sem aleatoriedade calibrada, batedores exploram cantos abertos e elevam a conversao para cerca de 95% a 97%.
+          </p>
+        </div>
+
+        <div class="two-col-grid">
+          <article class="surface-card">
+            <h3>1.1 Salto Metodologico sobre Amostras Sem Direcao de Goleiro</h3>
+            <p>
+              Modelagens preliminares baseadas em pequenos recortes (como 136 eventos sem direcao explicita do salto do goleiro ou regressoes heuristicas) nao permitem construir uma matriz de payoff \(A_{3\times 3}\) verificavel para ambos os jogadores.
+            </p>
+            <ul class="detail-list">
+              <li><strong>Integracao real no BigQuery:</strong> ingerimos a integralidade das <code>16.629</code> cobrancas do dataset Sofascore (<em>16k+ Football Penalties GK vs Shooter</em>), preservando imutabilidade na camada Bronze.</li>
+              <li><strong>Saneamento de dominio na Silver:</strong> filtro explicito removeu <code>903</code> cobrancas de handebol (14 equipes misturadas na fonte Kaggle), mantendo <code>15.726</code> cobrancas legitimas de futebol.</li>
+              <li><strong>Coordenadas normalizadas da baliza:</strong> cobrancas em lados opostos do campo (<code>x = 0</code> vs <code>x = 100</code>) foram espelhadas para um referencial unico sob a perspectiva do batedor: Esquerda (<code>L</code>), Centro (<code>C</code>) e Direita (<code>R</code>).</li>
+            </ul>
+          </article>
+
+          <article class="surface-card">
+            <h3>1.2 Normalizacao Espacial da Baliza (<code>x=0</code> vs <code>x=100</code>)</h3>
+            <figure class="pitch-diagram">
+              <svg
+                role="img"
+                viewBox="0 0 560 230"
+                width="560"
+                height="230"
+                aria-labelledby="pitch-svg-title"
+              >
+                <title id="pitch-svg-title">Diagrama da baliza normalizada em tres zonas horizontais: Esquerda (L), Centro (C) e Direita (R) sob perspectiva do batedor</title>
+                <rect x="20" y="16" width="520" height="196" rx="10" fill="none" stroke="currentColor" stroke-opacity="0.28" stroke-width="2"></rect>
+                <!-- Goal frame -->
+                <rect x="70" y="34" width="420" height="128" rx="4" fill="currentColor" fill-opacity="0.04" stroke="currentColor" stroke-width="3"></rect>
+                <!-- Three zones -->
+                <line x1="210" y1="34" x2="210" y2="162" stroke="currentColor" stroke-dasharray="6 4" stroke-opacity="0.55" stroke-width="2"></line>
+                <line x1="350" y1="34" x2="350" y2="162" stroke="currentColor" stroke-dasharray="6 4" stroke-opacity="0.55" stroke-width="2"></line>
+                <text x="140" y="80" text-anchor="middle" fill="currentColor" font-size="16" font-weight="700">L (Esquerda)</text>
+                <text x="140" y="104" text-anchor="middle" fill="currentColor" fill-opacity="0.82" font-size="12">Destro: Oposto/Aberto</text>
+                <text x="140" y="124" text-anchor="middle" fill="currentColor" fill-opacity="0.82" font-size="12">Canhoto: Oposto/Fechado</text>
+                <text x="140" y="146" text-anchor="middle" fill="currentColor" font-size="12" font-weight="600">Chutes Global: 43,0%</text>
+
+                <text x="280" y="80" text-anchor="middle" fill="currentColor" font-size="16" font-weight="700">C (Centro)</text>
+                <text x="280" y="104" text-anchor="middle" fill="currentColor" fill-opacity="0.82" font-size="12">Zona critica Nash</text>
+                <text x="280" y="124" text-anchor="middle" fill="currentColor" fill-opacity="0.82" font-size="12">Empirico p: 33,8%</text>
+                <text x="280" y="146" text-anchor="middle" fill="currentColor" font-size="12" font-weight="600">Nash p*: 38,1% C</text>
+
+                <text x="420" y="80" text-anchor="middle" fill="currentColor" font-size="16" font-weight="700">R (Direita)</text>
+                <text x="420" y="104" text-anchor="middle" fill="currentColor" fill-opacity="0.82" font-size="12">Destro: Oposto (48,5%)</text>
+                <text x="420" y="124" text-anchor="middle" fill="currentColor" fill-opacity="0.82" font-size="12">Canhoto: Natural</text>
+                <text x="420" y="146" text-anchor="middle" fill="currentColor" font-size="12" font-weight="600">Chutes Global: 46,1%</text>
+
+                <text x="280" y="194" text-anchor="middle" fill="currentColor" fill-opacity="0.86" font-size="11">Visao do batedor olhando para o gol (1.377 lances espaciais chute + salto).</text>
+              </svg>
+              <figcaption>
+                Mapeamento espacial adotado na camada Silver (<code>gk_zone</code> e <code>shot_zone</code> em <code>L / C / R</code>) e esquina tatica (<code>Natural</code>, <code>Center</code>, <code>Opposite</code>) por pe dominante (<code>right-foot</code> / <code>left-foot</code>).
+              </figcaption>
+            </figure>
+          </article>
+        </div>
+
+        <article class="surface-card flow-card">
+          <div class="flow-card-head">
+            <div>
+              <h3>1.3 Fluxo Interativo Kaggle &rarr; BigQuery Medallion</h3>
+              <p>Clique em cada estagio para inspecionar os contratos de dados, contagens reais e scripts auditados pelo Test Switch.</p>
+            </div>
+            <span class="pill" id="etl-selected-tag">Estagio selecionado: 1. Bronze</span>
+          </div>
+
+          <div class="pipeline-steps" role="group" aria-label="Estagios do pipeline Medallion">
+            <button type="button" class="pipeline-step-btn" data-stage="bronze" aria-pressed="true">
+              <span class="step-badge">1. Bronze</span>
+              <strong>16.629 linhas</strong>
+              <small>Kaggle API &rarr; BigQuery Load</small>
+            </button>
+            <span class="step-arrow" aria-hidden="true">&rarr;</span>
+            <button type="button" class="pipeline-step-btn" data-stage="silver-base" aria-pressed="false">
+              <span class="step-badge">2. Silver Base</span>
+              <strong>15.726 futebol</strong>
+              <small>-903 handebol | x=0/100</small>
+            </button>
+            <span class="step-arrow" aria-hidden="true">&rarr;</span>
+            <button type="button" class="pipeline-step-btn" data-stage="silver-enriched" aria-pressed="false">
+              <span class="step-badge">3. Silver Enriquecida</span>
+              <strong>1.377 espaciais</strong>
+              <small>143 defesas | 58 fora/trave</small>
+            </button>
+            <span class="step-arrow" aria-hidden="true">&rarr;</span>
+            <button type="button" class="pipeline-step-btn" data-stage="gold" aria-pressed="false">
+              <span class="step-badge">4. Gold &amp; JSON</span>
+              <strong>6 cenarios + 66 &theta; + 10 atletas</strong>
+              <small>PL Primal-Dual &amp; EB</small>
+            </button>
+          </div>
+
+          <div class="pipeline-inspector" id="pipeline-inspector" aria-live="polite">
+            <!-- Hydrated by app.js with exact contract details for the selected Medallion stage -->
+          </div>
+
+          <div tabindex="0" role="region" aria-labelledby="etl-table-caption" class="table-wrapper">
+            <table class="data-table etl-table">
+              <caption id="etl-table-caption">Auditoria das tabelas BigQuery no projeto dev-plataforma-geral (southamerica-east1)</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Camada / Tabela</th>
+                  <th scope="col">Script Responsavel</th>
+                  <th scope="col">Volume</th>
+                  <th scope="col">Regra de Qualidade e Labels</th>
+                </tr>
+              </thead>
+              <tbody id="etl-table-body">
+                <tr>
+                  <th scope="row"><code>po_bronze.raw_kaggle_penalties_sofascore</code></th>
+                  <td><code>src/etl/extract_load_bronze.py</code></td>
+                  <td class="num">16.629</td>
+                  <td>Batch Load integral (27 colunas) + patch explicito de labels na tabela (<code>datacloud=antigravity</code>).</td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>po_silver.stg_football_penalties_clean</code> (Base)</th>
+                  <td><code>src/etl/transform_silver_base.py</code></td>
+                  <td class="num">15.726</td>
+                  <td>Expurgo de 903 linhas de handebol (14 times), normalizacao de baliza (<code>x=0</code> vs <code>x=100</code>) e zonas <code>L/C/R</code>.</td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>po_silver.stg_football_penalties_clean</code> (Espacial)</th>
+                  <td><code>src/etl/enrich_silver_features.py</code></td>
+                  <td class="num">1.377</td>
+                  <td><code>143</code> defesas + <code>58</code> fora/trave (201 nao-gols); pe dominante em 100% (996 destros, 381 canhotos).</td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>po_gold.mart_payoff_matrices_3x3</code> + <code>mart_sensitivity_theta</code> + <code>mart_shooter_scouting</code></th>
+                  <td><code>lp_nash_solver.py</code> + <code>sensitivity_and_scouting.py</code></td>
+                  <td class="num">6 / 66 / 10</td>
+                  <td>Matrizes 3x3 Primal-Dual (gap &lt; 1e-9), curvas <code>theta</code> em <code>[0, 1]</code> e scouting com prior bayesiano empirico.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="sec-2-personas" class="page-section alt-band">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-kicker">Secao 2 | Dualidade de Publico no Clube</span>
+          <h2>Comparativo Interativo: Treinador de Goleiros vs. Goleiro em Campo</h2>
+          <p class="section-intro">
+            Uma solucao de Pesquisa Operacional falha no futebol se entregar apenas equacoes para quem esta sob a trave, ou apenas intuicao para a comissao tecnica.
+            Este portfolio traduz o mesmo modelo matematico em duas linguagens complementares.
+          </p>
+        </div>
+
+        <div class="tabs" id="persona-tabs">
+          <div class="tablist" role="tablist" focusgroup="tablist nomemory" aria-label="Comparativo de perfis do modelo">
+            <button type="button" role="tab" id="tab-treinador" aria-selected="true" focusgroupstart>
+              Visao Analitica (Treinador)
+            </button>
+            <button type="button" role="tab" id="tab-goleiro" aria-selected="false" tabindex="-1">
+              Visao de Luva (Goleiro)
+            </button>
+            <button type="button" role="tab" id="tab-ladoalado" aria-selected="false" tabindex="-1">
+              Comparativo Lado a Lado
+            </button>
+          </div>
+
+          <div role="tabpanel" id="panel-treinador" aria-labelledby="tab-treinador" tabindex="0">
+            <div class="tab-panel-card two-col-grid">
+              <div>
+                <span class="persona-badge">Perfil 1 | Pre-jogo e Analise de Desempenho</span>
+                <h3>Sala Tatica: Matriz 3x3, Dualidade e Fronteira \(\theta_{\text{crit}}\)</h3>
+                <p>
+                  O Treinador de Goleiros precisa auditar o trade-off entre seguranca inexploravel e exploracao de vicios do cobrador dias antes da partida, combinando dados historicos com confianca de scouting.
+                </p>
+                <ul class="detail-list">
+                  <li><strong>O que pergunta:</strong> <em>"Com quantos % de confianca no relatorio de scouting vale abandonar a mistura Nash sem expor o gol a um contra-ataque central?"</em></li>
+                  <li><strong>Ferramentas que consome:</strong> matriz empirica/Bayesiana \(A = [a_{ij}]\), valores Primal \(V^*\) e Dual \(W^*\), piso de pior cenario \(Fl(p^*(\theta))\) e validacao Simplex LP.</li>
+                  <li><strong>Exemplo real (<code id="persona-global-label">C1_GLOBAL</code>):</strong> garante \(\mathbf{13{,}94\%}\) no equilibrio puro (\(p^* = 28{,}7\%\, L / 38{,}1\%\, C / 33{,}2\%\, R\)) e identifica que so acima de \(\theta \ge 0{,}7\) vale explorar o vicio.</li>
+                </ul>
+              </div>
+              <aside class="metric-callout">
+                <h4>Checklist Analitico do Treinador</h4>
+                <dl class="stat-dl">
+                  <div>
+                    <dt>Metrica Primaria</dt>
+                    <dd>Taxa garantida de Nao-Gol \(V^*(\theta)\)</dd>
+                  </div>
+                  <div>
+                    <dt>Sinal de Alerta</dt>
+                    <dd>Queda do piso \(Fl(p^*)\) de \(13{,}94\%\) para \(2{,}86\%\)</dd>
+                  </div>
+                  <div>
+                    <dt>Ajuste de Amostra Pequena</dt>
+                    <dd>Empirical Bayes (\(\alpha=2{,}0\) canhotos | \(\alpha=5{,}0\) batedor)</dd>
+                  </div>
+                  <div>
+                    <dt>Auditoria de Solver</dt>
+                    <dd>Gap Primal-Dual \(&lt; 10^{-9}\) &amp; Excel Solver Simplex LP</dd>
+                  </div>
+                </dl>
+              </aside>
+            </div>
+          </div>
+
+          <div role="tabpanel" id="panel-goleiro" aria-labelledby="tab-goleiro" hidden="until-found">
+            <div class="tab-panel-card two-col-grid">
+              <div>
+                <span class="persona-badge persona-badge-field">Perfil 2 | Vestiario, Garrafa d'Agua e Linha do Gol</span>
+                <h3>Cartao de Luva: Comando em 3 Segundos Sem Jargao Matematico</h3>
+                <p>
+                  No instante da corrida do cobrador, o goleiro tem menos de meio segundo apos o contato para reagir e depende de uma pre-decisao simples, sorteada de forma imprevisivel.
+                </p>
+                <ul class="detail-list">
+                  <li><strong>O que pergunta:</strong> <em>"Contra o Harry Kane agora, para onde eu salto, quando eu fico no centro e como evito telegrafar meu lado?"</em></li>
+                  <li><strong>Ferramentas que consome:</strong> distribuicao enxuta de roleta (<code>Esquerda / Centro / Direita</code>), sinalizador fisico (marcador de segundos no relogio ou moeda) e alerta de canto preferido.</li>
+                  <li><strong>Exemplo real (<code id="persona-kane-label">Harry Kane</code>):</strong> mesmo com 17/28 chutes na Direita, manter mistura (ex.: 23% E / 27% C / 50% D) ou aplicar comando <strong>DIREITA</strong> apenas com scouting forte.</li>
+                </ul>
+              </div>
+              <aside class="metric-callout metric-callout-field">
+                <h4>Protocolo Rapido de Vestiario</h4>
+                <dl class="stat-dl">
+                  <div>
+                    <dt>Regra de Ouro 1</dt>
+                    <dd>Ficar no Centro mais vezes do que o instinto pede (~38% global vs 34% habito)</dd>
+                  </div>
+                  <div>
+                    <dt>Regra de Ouro 2</dt>
+                    <dd>Nunca repetir o mesmo canto por padrao visivel antes do apito</dd>
+                  </div>
+                  <div>
+                    <dt>Exemplo Canhotos</dt>
+                    <dd>Ficar no Centro em ~49% no Nash puro (Salah/Haaland exigem leitura especifica)</dd>
+                  </div>
+                  <div>
+                    <dt>Linguagem Visual</dt>
+                    <dd>Setas grandes L / C / R e botoes de luva sem termos de Simplex</dd>
+                  </div>
+                </dl>
+              </aside>
+            </div>
+          </div>
+
+          <div role="tabpanel" id="panel-comparativo" aria-labelledby="tab-comparativo" hidden="until-found">
+            <div class="tab-panel-card">
+              <h3>Tabela de Traducao Dual: Da Formulacao Matematica ao Campo</h3>
+              <div tabindex="0" role="region" aria-labelledby="personas-table-caption" class="table-wrapper">
+                <table class="data-table personas-table">
+                  <caption id="personas-table-caption">Comparacao direta entre necessidades do Treinador de Goleiros e do Goleiro em Campo</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Dimensao do Sistema</th>
+                      <th scope="col">Treinador / Analista (Visao Tecnica)</th>
+                      <th scope="col">Goleiro em Campo (Visao de Luva)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <th scope="row">Entrada Principal</th>
+                      <td>Matriz de payoff \(A_{3\times 3}\), peso bayesiano \(\alpha\) e nivel \(\theta \in [0, 1]\).</td>
+                      <td>Foto do batedor, pe dominante (Destro/Canhoto) e nivel de confianca (Baixa/Media/Alta).</td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Momento de Uso</th>
+                      <td>Semana pre-jogo, relatorio tatico de adversarios e calibracao pos-partida.</td>
+                      <td>Prelecao no vestiario, anotacao na garrafa e 3 segundos na marca da cal.</td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Saida Exibida</th>
+                      <td>Solucao Primal \(p^*\), Dual \(q^*\), \(V^*(\theta)\), piso \(Fl(p^*)\) e folgas complementares.</td>
+                      <td>Roleta ponderada com 3 percentuais (E / C / D) e comando direto de canto sorteado.</td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Tratamento de Risco</th>
+                      <td>Mede a queda de garantia do pior cenario caso o batedor mude o padrao no jogo.</td>
+                      <td>Alerta visual simples: se o batedor varia muito (ex.: Oyarzabal), usar Roleta de Equilibrio.</td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Traducao Cenario Global</th>
+                      <td id="comp-trainer-global">\(p^* = (28{,}7\%, 38{,}1\%, 33{,}2\%)\), \(V^* = 13{,}94\%\), gap <code>0.00e+00</code>.</td>
+                      <td id="comp-gk-global">Sorteio sugerido: ~3 vezes Esquerda, ~4 vezes Centro, ~3 vezes Direita a cada 10 chutes.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="sec-3-teoria" class="page-section">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-kicker">Secao 3 | Formulacao Matematica Formal (Etapa 2)</span>
+          <h2>Teoria dos Jogos de Soma Zero 3x3 e Programacao Linear Primal-Dual</h2>
+          <p class="section-intro">
+            Modelamos a cobranca de penalti como um jogo simultaneo de soma zero entre dois jogadores racionais: cada ganho de probabilidade de nao-gol para o Goleiro reduz exatamente a probabilidade esperada de conversao do Batedor.
+          </p>
+        </div>
+
+        <div class="math-grid">
+          <article class="surface-card math-card">
+            <h3>3.1 Conjuntos, Matriz de Payoff \(A\) e Regularizacao Bayesiana</h3>
+            <p>
+              Sejam os conjuntos finitos de acoes do Goleiro (linha) \(i \in I = \{L, C, R\}\) e do Batedor (coluna) \(j \in J = \{L, C, R\}\). Cada elemento \(a_{ij}\) representa a probabilidade de <strong>Nao-Gol</strong> (defesa ou chute para fora/trave):
+            </p>
+            <div class="math-block" role="region" aria-label="Equacao do payoff com suavizacao bayesiana empirica">
+              $$\begin{aligned}
+              a_{ij} &= P(\text{Nao-Gol} \mid \text{Gol. } i,\; \text{Bat. } j) \\
+              &= \frac{m_{ij} + \alpha \cdot a_{ij}^{\text{prior}}}{n_{ij} + \alpha}
+              \end{aligned}$$
+            </div>
+            <ul class="detail-list">
+              <li><strong>Sem regularizacao (\(\alpha = 0\)):</strong> usado nos 5 cenarios de alta amostra (<code>C1</code>, <code>C2</code>, <code>C4</code>, <code>C5</code>, <code>C6</code>), onde frequencias observadas sao estaveis.</li>
+              <li><strong>Empirical Bayes (\(\alpha = 2{,}0\) e \(\alpha = 5{,}0\)):</strong> em <code>C3_LEFT_FOOT</code> (celulas <code>L_C</code> e <code>R_C</code> com \(0\) erros), encolhe para a matriz Global <code>C1</code>; no scouting individual, cada estrela encolhe para o cenario do seu pe dominante.</li>
+            </ul>
+          </article>
+
+          <article class="surface-card math-card">
+            <h3>3.2 Modelos Lineares Primal e Dual (Von Neumann Minimax)</h3>
+            <p>
+              Como nenhuma estrategia pura constitui ponto de sela (\(2{,}86\%\text{-}5{,}05\%\) fora da diagonal vs. \(30{,}19\%\text{-}37{,}89\%\) na diagonal), buscamos estrategias mistas \(p = (p_L, p_C, p_R)\) e \(q = (q_L, q_C, q_R)\):
+            </p>
+            <div class="primal-dual-split">
+              <div class="formula-subbox">
+                <h4>PL Primal (Goleiro: Maximin)</h4>
+                <div class="math-block">
+                  $$\begin{aligned}
+                  \max_{p,\, V}\; & V \\
+                  \text{s.a.}\; & \sum_{i \in \{L,C,R\}} p_i\, a_{ij} \ge V, \quad \forall j \in J \\
+                  & \sum_{i \in \{L,C,R\}} p_i = 1, \quad p_i \ge 0
+                  \end{aligned}$$
+                </div>
+              </div>
+              <div class="formula-subbox">
+                <h4>PL Dual (Batedor: Minimax)</h4>
+                <div class="math-block">
+                  $$\begin{aligned}
+                  \min_{q,\, W}\; & W \\
+                  \text{s.a.}\; & \sum_{j \in \{L,C,R\}} a_{ij}\, q_j \le W, \quad \forall i \in I \\
+                  & \sum_{j \in \{L,C,R\}} q_j = 1, \quad q_j \ge 0
+                  \end{aligned}$$
+                </div>
+              </div>
+            </div>
+            <p class="theorem-note">
+              Pelo <strong>Teorema da Dualidade Forte</strong>, sempre que um problema possui solucao otima finita, ambos coincidem em valor: \(V^* = W^*\) (auditado nos 6 cenarios com \(|V^* - W^*| &lt; 10^{-9}\)).
+            </p>
+          </article>
+
+          <article class="surface-card math-card math-card-wide">
+            <h3>3.3 Sensibilidade Parametrica Linearizada \(V^*(\theta)\) e Piso de Pior Cenario</h3>
+            <p>
+              Quando o analista atribui grau de confianca \(\theta \in [0, 1]\) ao historico empirico do cobrador (\(\hat{q}_{\text{emp}}\)), modelamos o batedor como a combinacao convexa \(q(\theta) = \theta\,\hat{q}_{\text{emp}} + (1 - \theta)\,\tilde{q}\), em que o adversario ainda otimiza a fracao livre \(\tilde{q} \in \Delta^2\). Isso produz uma matriz linear efetiva \(A(\theta)\) compatível diretamente com o suplemento <strong>Simplex LP</strong> do Excel:
+            </p>
+            <div class="math-block">
+              $$\begin{aligned}
+              A_{ij}(\theta) &= \theta \cdot (A\hat{q}_{\text{emp}})_i + (1 - \theta) \cdot a_{ij} \\
+              Fl(p^*(\theta)) &= \min_{j \in J} \sum_{i \in I} p_i^*(\theta)\,a_{ij} \;\le\; V^*(\theta) \;\le\; \sum_{i \in I} p_i^*(\theta)\,(A\hat{q}_{\text{emp}})_i
+              \end{aligned}$$
+            </div>
+            <div class="property-pills">
+              <span><strong>Fronteira \(\theta = 0\):</strong> Equilibrio de Nash inexploravel \(V^*(0)\).</span>
+              <span><strong>Fronteira \(\theta = 1\):</strong> Best Response pura \(V^*(1) = \max_i (A\hat{q}_{\text{emp}})_i\).</span>
+              <span><strong>Folga Complementar:</strong> Todo canto jogado por \(q_j^* &gt; 0\) torna a restricao primal ativa \(\sum_i p_i^* a_{ij} = V^*\).</span>
+            </div>
+          </article>
+        </div>
+
+        <article class="surface-card verifier-card">
+          <div class="verifier-head">
+            <div>
+              <h3>3.4 Verificador Real das Equacoes (Dados Gold dos 6 Cenarios)</h3>
+              <p>Selecione qualquer cenario da tabela <code>po_gold.mart_payoff_matrices_3x3</code> para conferir numericamente \(A\), \(p^*\), \(q^*\), \(V^* = W^*\) e a folga de cada restricao do PL Primal.</p>
+            </div>
+            <div class="control-group">
+              <label for="theory-scenario-select">Cenario auditado:</label>
+              <select id="theory-scenario-select" name="scenario">
+                <option value="C1_GLOBAL">1. Global (Todas as Cobrancas Espaciais)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="verifier-metrics" id="theory-verifier-metrics" aria-live="polite">
+            <!-- Hydrated from po_penalties_mart.json -->
+          </div>
+
+          <div tabindex="0" role="region" aria-labelledby="theory-matrix-caption" class="table-wrapper">
+            <table class="data-table matrix-table">
+              <caption id="theory-matrix-caption">Matriz de payoff 3x3 e checagem numerica das restricoes Primais Sum_i (p*_i * a_ij) &gt;= V*</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Acao do Goleiro (\(p_i^*\))</th>
+                  <th scope="col">Chute L (\(a_{i,L}\))</th>
+                  <th scope="col">Chute C (\(a_{i,C}\))</th>
+                  <th scope="col">Chute R (\(a_{i,R}\))</th>
+                </tr>
+              </thead>
+              <tbody id="theory-matrix-body">
+                <!-- Hydrated from po_penalties_mart.json -->
+              </tbody>
+              <tfoot id="theory-matrix-foot">
+                <!-- Expected payoff per shooter corner and primal slack -->
+              </tfoot>
+            </table>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="sec-4-treinador" class="page-section roadmap-band">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-kicker">Secao 4 | Proxima Entrega E4-T02</span>
+          <h2>Visao Tecnica do Treinador: 6 Cenarios, Heatmap 3x3 e Slider \(\theta\)</h2>
+          <p class="section-intro">
+            Secao reservada para o painel interativo completo de analise tatica (seletor comparativo dos 6 cenarios, mapa de calor 3x3, controle deslizante continuo \(\theta \in [0, 1]\) e grafico da curva \(V^*(\theta)\) vs piso de risco).
+          </p>
+        </div>
+        <div class="roadmap-stub">
+          <span class="pill">Em implementacao na entrega E4-T02</span>
+          <p>A infraestrutura de dados Gold (<code>mart_sensitivity_theta</code> com 66 pontos) ja esta conectada em <code>po_penalties_mart.json</code> e pronta para hidratar esta visualizacao.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="sec-5-goleiro" class="page-section">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-kicker">Secao 5 | Proxima Entrega E4-T03</span>
+          <h2>Visao de Luva do Goleiro: Dossies de Estrelas e Roleta de Nash</h2>
+          <p class="section-intro">
+            Cartoes de vestiario sem jargao matematico para os batedores selecionados (Harry Kane, Kylian Mbappe, Mohamed Salah, Bruno Fernandes, Erling Haaland e Cole Palmer) com gerador aleatorizado calibrado por \(p^*\).
+          </p>
+        </div>
+        <div class="roadmap-stub">
+          <span class="pill">Em implementacao na entrega E4-T03</span>
+          <p>Os 10 perfis com suavizacao Empirical Bayes (\(\alpha = 5{,}0\)) ja residem em <code>mart_shooter_scouting</code> dentro de <code>po_penalties_mart.json</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="sec-6-ponte" class="page-section roadmap-band">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-kicker">Secao 6 | Proxima Entrega E4-T03</span>
+          <h2>Ponte Pratica: Simulador de Traducao Analista &rarr; Campo</h2>
+          <p class="section-intro">
+            Conversao passo a passo das restricoes do modelo Simplex LP em decisoes operacionais auditadas junto ao suplemento Excel Solver e aos protocolos de treino semanal.
+          </p>
+        </div>
+        <div class="roadmap-stub">
+          <span class="pill">Em implementacao na entrega E4-T03</span>
+          <p>Integracao planejada com os resultados de validacao cruzada de <code>docs/validacao_excel_solver.xlsx</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="sec-7-arena" class="page-section">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-kicker">Secao 7 | Proxima Entrega E5-T01</span>
+          <h2>Arena Ao Vivo: Banca e Turma vs. Estrategia Otima (Seminario 26/11)</h2>
+          <p class="section-intro">
+            Simulador em tempo real de disputa de 5 cobrancas (com morte subita) comparando a defesa empirica contra o goleiro otimo de Nash e contra o modo Adaptativo guiado por \(\theta\).
+          </p>
+        </div>
+        <div class="roadmap-stub">
+          <span class="pill">Em implementacao na entrega E5-T01</span>
+          <p>Preparado para execucao ao vivo em sala de aula na apresentacao final de 26/11 e publicacao no GitHub Pages (<code>E5-T02</code>).</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p>
+        <strong>Grupo 11 | Pesquisa Operacional Aplicada (UFABC Q3/2026)</strong> |
+        Isabella Paulino, Camille Bevilaqua e Felipe Alves
+      </p>
+      <p class="footer-meta">
+        Repositorio: <a href="https://github.com/fealvesz2/po-penaltis-goleiro" rel="noopener noreferrer">github.com/fealvesz2/po-penaltis-goleiro</a> |
+        Fonte Gold sincronizada: <span id="footer-generated-at">aguardando JSON</span>
+      </p>
+    </div>
+  </footer>
+</body>
+</html>
