@@ -25,6 +25,12 @@ RAW_DIR = REPO_ROOT / "data" / "raw"
 ZIP_PATH = RAW_DIR / "16k-football-penalties.zip"
 CSV_PATH = RAW_DIR / "penalties_dataset_sofascore.csv"
 
+BRONZE_LABELS = {
+    "datacloud": "antigravity",
+    "domain": "po",
+    "layer": "bronze",
+}
+
 SCHEMA = [
     bigquery.SchemaField("match_id", "INT64"),
     bigquery.SchemaField("match_date", "DATE"),
@@ -96,11 +102,7 @@ def load_csv_to_bigquery_bronze(csv_path: Path) -> None:
         allow_quoted_newlines=True,
         encoding="UTF-8",
         write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
-        labels={
-            "datacloud": "antigravity",
-            "domain": "po",
-            "layer": "bronze",
-        },
+        labels=BRONZE_LABELS,
     )
 
     with csv_path.open("rb") as source_file:
@@ -113,14 +115,17 @@ def load_csv_to_bigquery_bronze(csv_path: Path) -> None:
 
     load_job.result()
     table = client.get_table(table_ref)
+    table.labels = BRONZE_LABELS
+    table = client.update_table(table, ["labels"])
+
     print(f"[BigQuery] Job ID: {load_job.job_id}")
-    print(f"[BigQuery] Tabela: {table_ref}")
+    print(f"[BigQuery] Tabela: {table_ref} | Labels: {table.labels}")
     print(f"[BigQuery] Linhas carregadas: {table.num_rows} | Colunas: {len(table.schema)}")
 
 
 def main() -> None:
     cred_path = Path(os.environ.get("KAGGLE_CRED_PATH", str(DEFAULT_CRED_PATH)))
-    csv_path = download_and_extract_kaggle(cred_path)
+    csv_path = CSV_PATH if CSV_PATH.exists() else download_and_extract_kaggle(cred_path)
     load_csv_to_bigquery_bronze(csv_path)
 
 
