@@ -10,10 +10,12 @@ from google.cloud import bigquery
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src" / "etl"))
+sys.path.insert(0, str(REPO_ROOT / "src" / "models"))
 
 import extract_load_bronze as elb
 import transform_silver_base as tsb
 import enrich_silver_features as esf
+import lp_nash_solver as lns
 
 PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "dev-plataforma-geral")
 LOCATION = "southamerica-east1"
@@ -37,11 +39,15 @@ class BasePOTestCase(unittest.TestCase):
 
     @classmethod
     def run_bq_row(cls, sql: str) -> dict:
+        return cls.run_bq_rows(sql)[0]
+
+    @classmethod
+    def run_bq_rows(cls, sql: str) -> list[dict]:
         client = cls.get_bq_client()
         job_config = bigquery.QueryJobConfig(
             labels={"datacloud": "antigravity", "domain": "po", "layer": "qa"}
         )
-        return dict(list(client.query(sql, job_config=job_config).result())[0])
+        return [dict(r) for r in client.query(sql, job_config=job_config).result()]
 
 
 class TestE1Governance(BasePOTestCase):
@@ -52,6 +58,7 @@ class TestE1Governance(BasePOTestCase):
         self.assertEqual(elb.LOCATION, "southamerica-east1")
         self.assertEqual(tsb.LOCATION, "southamerica-east1")
         self.assertEqual(esf.LOCATION, "southamerica-east1")
+        self.assertEqual(lns.LOCATION, "southamerica-east1")
 
     def test_tc_e1_02_medallion_datasets_and_labels(self) -> None:
         if TEST_MODE == "fast":
@@ -204,17 +211,119 @@ class TestE2T03SilverEnrichment(BasePOTestCase):
         self.assertEqual(row["enriched_nulls"], 0)
 
 
+class TestE3T01GoldNashSolver(BasePOTestCase):
+    """Casos de Teste TC-E3-01A e TC-E3-01B (Solver PL Primal-Dual 3x3 & Camada Gold)."""
+
+    def _assert_nash_properties(
+        self,
+        A: list[list[float]],
+        expected_p: list[float],
+        expected_q: list[float],
+        expected_v: float,
+    ) -> None:
+        p, v = lns.solve_primal_gk(A)
+        q, w = lns.solve_dual_shooter(A)
+
+        self.assertAlmostEqual(sum(p), 1.0, places=9)
+        self.assertAlmostEqual(sum(q), 1.0, places=9)
+        self.assertLess(abs(v - w), 1e-12)
+        self.assertAlmostEqual(v, expected_v, places=7)
+
+        for i in range(3):
+            self.assertGreaterEqual(p[i], 0.0)
+            self.assertGreaterEqual(q[i], 0.0)
+            self.assertAlmostEqual(p[i], expected_p[i], places=6)
+            self.assertAlmostEqual(q[i], expected_q[i], places=6)
+
+        for j in range(3):
+            self.assertGreaterEqual(sum(p[i] * A[i][j] for i in range(3)), v - 1e-9)
+        for i in range(3):
+            self.assertLessEqual(sum(A[i][j] * q[j] for j in range(3)), w + 1e-9)
+
+    def test_tc_e3_01a_solver_primal_dual_mathematical_contracts(self) -> None:
+        self.assertEqual(lns.GOLD_LABELS, {"datacloud": "antigravity", "domain": "po", "layer": "gold"})
+
+        # 1. Matriz Identidade 3x3 simetrica: equilibrio uniforme (1/3, 1/3, 1/3)
+        identity_3x3 = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+        self._assert_nash_properties(identity_3x3, [1.0 / 3.0] * 3, [1.0 / 3.0] * 3, 1.0 / 3.0)
+
+        # 2. Ponto de Sela puro: goleiro fixa L e batedor fixa R com valor 0.40
+        saddle_3x3 = [[0.50, 0.45, 0.40], [0.10, 0.20, 0.30], [0.20, 0.25, 0.15]]
+        self._assert_nash_properties(saddle_3x3, [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.40)
+
+        # 3. Subjogo 2x2 misto com linha C dominada e coluna C subotima para batedor
+        dominated_c_3x3 = [[0.40, 0.80, 0.10], [0.01, 0.80, 0.01], [0.10, 0.80, 0.30]]
+        self._assert_nash_properties(dominated_c_3x3, [0.40, 0.0, 0.60], [0.40, 0.0, 0.60], 0.22)
+
+        # 4. Suavizacao Bayesiana Empirica (alpha=2.0 encolhe celula vazia para a matriz prior)
+        prior = [[0.30] * 3 for _ in range(3)]
+        sample_rows = [
+            {"gk_zone": "L", "shot_zone": "L", "outcome": "missed"},
+            {"gk_zone": "L", "shot_zone": "L", "outcome": "scored"},
+        ]
+        smoothed, stats = lns.compute_smoothed_payoff_matrix(sample_rows, alpha=2.0, prior_matrix=prior)
+        self.assertAlmostEqual(smoothed[0][0], (1 + 2.0 * 0.30) / 4.0, places=9)
+        self.assertAlmostEqual(smoothed[1][1], 0.30, places=9)
+        self.assertEqual(stats["L_L"][0], 2)
+        self.assertEqual(stats["C_C"][0], 0)
+
+    def test_tc_e3_01b_bigquery_gold_matrices_and_duality_gap(self) -> None:
+        if TEST_MODE == "fast":
+            self.skipTest("Modo fast ativo: pulando verificacao online no BigQuery.")
+        client = self.get_bq_client()
+        table = client.get_table(lns.GOLD_MATRIX_TABLE)
+        self.assertEqual(table.num_rows, 6)
+        self.assertEqual(table.labels, lns.GOLD_LABELS)
+
+        rows = self.run_bq_rows(
+            f"SELECT * FROM `{lns.GOLD_MATRIX_TABLE}` ORDER BY scenario_order ASC"
+        )
+        self.assertEqual(len(rows), 6)
+
+        expected = {
+            "C1_GLOBAL": (1377, 0.0, 0.139382),
+            "C2_RIGHT_FOOT": (996, 0.0, 0.143700),
+            "C3_LEFT_FOOT": (381, 2.0, 0.121360),
+            "C4_CLUTCH": (616, 0.0, 0.141208),
+            "C5_FORWARDS": (841, 0.0, 0.131012),
+            "C6_MID_DEF": (536, 0.0, 0.151811),
+        }
+        self.assertEqual([r["scenario_code"] for r in rows], list(expected.keys()))
+
+        zones = ["L", "C", "R"]
+        for r in rows:
+            code = r["scenario_code"]
+            exp_n, exp_alpha, exp_v = expected[code]
+            self.assertEqual(r["sample_size"], exp_n)
+            self.assertAlmostEqual(r["eb_alpha"], exp_alpha, places=6)
+            self.assertLess(r["duality_gap"], 1e-9)
+            self.assertAlmostEqual(r["game_value_v_primal"], r["game_value_w_dual"], places=6)
+            self.assertAlmostEqual(r["game_value_v_primal"], exp_v, places=5)
+
+            self.assertAlmostEqual(r["gk_emp_L"] + r["gk_emp_C"] + r["gk_emp_R"], 1.0, places=5)
+            self.assertAlmostEqual(r["shooter_emp_L"] + r["shooter_emp_C"] + r["shooter_emp_R"], 1.0, places=5)
+            self.assertAlmostEqual(r["gk_nash_L"] + r["gk_nash_C"] + r["gk_nash_R"], 1.0, places=5)
+            self.assertAlmostEqual(r["shooter_nash_L"] + r["shooter_nash_C"] + r["shooter_nash_R"], 1.0, places=5)
+
+            cell_n_sum = sum(r[f"n_{gz}_{sz}"] for gz in zones for sz in zones)
+            cell_miss_sum = sum(r[f"miss_{gz}_{sz}"] for gz in zones for sz in zones)
+            self.assertEqual(cell_n_sum, r["sample_size"])
+            self.assertEqual(cell_miss_sum, r["total_missed"])
+
+
 STAGE_REGISTRY: dict[str, list[type[unittest.TestCase]]] = {
     "E1": [TestE1Governance],
     "E2-T01": [TestE2T01BronzeIngestion],
     "E2-T02": [TestE2T02SilverBase],
     "E2-T03": [TestE2T03SilverEnrichment],
     "E2": [TestE2T01BronzeIngestion, TestE2T02SilverBase, TestE2T03SilverEnrichment],
+    "E3-T01": [TestE3T01GoldNashSolver],
     "ALL": [
         TestE1Governance,
         TestE2T01BronzeIngestion,
         TestE2T02SilverBase,
         TestE2T03SilverEnrichment,
+        TestE3T01GoldNashSolver,
     ],
 }
 
