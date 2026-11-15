@@ -782,6 +782,9 @@ class TestE4T01PortfolioCore(BasePOTestCase):
             'id="tab-treinador"',
             'id="tab-goleiro"',
             'id="tab-ladoalado"',
+            'aria-labelledby="tab-treinador"',
+            'aria-labelledby="tab-goleiro"',
+            'aria-labelledby="tab-ladoalado"',
             'hidden="until-found"',
             r"\max_{p,\, V}",
             r"\min_{q,\, W}",
@@ -918,6 +921,9 @@ const browserWsUrl = process.argv[2];
       document.getElementById("tab-goleiro").click();
       const tabGolSelected = document.getElementById("tab-goleiro").getAttribute("aria-selected");
       const panelGolHidden = document.getElementById("panel-goleiro").hasAttribute("hidden");
+      document.getElementById("tab-ladoalado").click();
+      const tabLadoSelected = document.getElementById("tab-ladoalado").getAttribute("aria-selected");
+      const panelCompHidden = document.getElementById("panel-comparativo").hasAttribute("hidden");
       document.getElementById("tab-treinador").click();
 
       document.querySelector('.pipeline-step-btn[data-stage="silver-enriched"]').click();
@@ -943,6 +949,8 @@ const browserWsUrl = process.argv[2];
         overflow1440,
         tabGolSelected,
         panelGolHidden,
+        tabLadoSelected,
+        panelCompHidden,
         etlHas1377: etlText.includes("1.377"),
         verifierHas1518: verifierText.includes("15,18%") && verifierText.includes("C6_MID_DEF"),
         themeToggled: themeAfter === (wasChecked ? "light" : "dark"),
@@ -1037,6 +1045,8 @@ const browserWsUrl = process.argv[2];
             self.assertFalse(desk["overflow1440"])
             self.assertEqual(desk["tabGolSelected"], "true")
             self.assertFalse(desk["panelGolHidden"])
+            self.assertEqual(desk["tabLadoSelected"], "true")
+            self.assertFalse(desk["panelCompHidden"])
             self.assertTrue(desk["etlHas1377"])
             self.assertTrue(desk["verifierHas1518"])
             self.assertTrue(desk["themeToggled"])
