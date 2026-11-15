@@ -20,6 +20,7 @@ import transform_silver_base as tsb
 import enrich_silver_features as esf
 import lp_nash_solver as lns
 import sensitivity_and_scouting as sas
+import generate_etapa2_3_deliverables as ged
 
 PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "dev-plataforma-geral")
 LOCATION = "southamerica-east1"
@@ -522,6 +523,174 @@ class TestE3T02SensitivityScouting(BasePOTestCase):
         self.assertEqual(wb["Scouting_10_Batedores"].max_row, 11)
 
 
+class TestE3T03DocumentationAndXlsm(BasePOTestCase):
+    """TC-E3-03A/B: Documentacao Etapas 2-3 (.md) e Planilha Oficial (.xlsm)."""
+
+    @staticmethod
+    def _build_minimal_mart_fixture() -> dict:
+        codes = [
+            "C1_GLOBAL",
+            "C2_RIGHT_FOOT",
+            "C3_LEFT_FOOT",
+            "C4_CLUTCH",
+            "C5_FORWARDS",
+            "C6_MID_DEF",
+        ]
+        scenarios = []
+        curves = []
+        for idx, code in enumerate(codes, start=1):
+            rec = {
+                "scenario_order": idx,
+                "scenario_code": code,
+                "scenario_label": code,
+                "sample_size": 1377 if idx == 1 else 500,
+                "total_missed": 201 if idx == 1 else 70,
+                "empirical_non_goal_rate": 0.1460,
+                "eb_alpha": 2.0 if idx == 3 else 0.0,
+                "gk_emp_L": 0.26,
+                "gk_emp_C": 0.34,
+                "gk_emp_R": 0.40,
+                "gk_nash_L": 0.287,
+                "gk_nash_C": 0.381,
+                "gk_nash_R": 0.332,
+                "shooter_emp_L": 0.43,
+                "shooter_emp_C": 0.11,
+                "shooter_emp_R": 0.46,
+                "shooter_nash_L": 0.296,
+                "shooter_nash_C": 0.365,
+                "shooter_nash_R": 0.339,
+                "game_value_v_primal": 0.1394,
+                "game_value_w_dual": 0.1394,
+                "duality_gap": 0.0,
+            }
+            for gz in sas.ZONES:
+                for sz in sas.ZONES:
+                    rec[f"a_{gz}_{sz}"] = 0.35 if gz == sz else 0.04
+                    rec[f"n_{gz}_{sz}"] = 100
+                    rec[f"miss_{gz}_{sz}"] = 14
+            rec["a_L_C"] = 0.0286
+            rec["a_C_L"] = 0.0505
+            rec["a_R_L"] = 0.0343
+            rec["a_C_C"] = 0.3019
+            rec["a_L_L"] = 0.3789
+            scenarios.append(rec)
+            for th in sas.THETA_GRID:
+                curves.append(
+                    {
+                        "scenario_order": idx,
+                        "scenario_code": code,
+                        "theta": th,
+                        "game_value_v_primal": 0.1394 if th <= 0.6 else 0.1886,
+                        "worst_case_floor_rate": 0.1394 if th <= 0.6 else 0.0286,
+                    }
+                )
+
+        scouting = [
+            {
+                "scouting_rank": rank,
+                "player": star,
+                "is_featured_glove_star": rank <= 6,
+                "dominant_foot": "right-foot",
+                "career_total_kicks": 30,
+                "spatial_kicks": 12,
+                "shot_count_L": 4,
+                "shot_count_C": 1,
+                "shot_count_R": 7,
+                "corner_natural_count": 4,
+                "corner_center_count": 1,
+                "corner_opposite_count": 7,
+                "gk_nash_L": 0.30,
+                "gk_nash_C": 0.35,
+                "gk_nash_R": 0.35,
+                "game_value_v_nash": 0.125,
+                "gk_theta50_L": 0.30,
+                "gk_theta50_C": 0.35,
+                "gk_theta50_R": 0.35,
+                "best_response_zone_theta1": "R",
+                "best_response_ev_theta1": 0.18,
+            }
+            for rank, star in enumerate(
+                sas.FEATURED_GLOVE_STARS
+                + ["Hakan Çalhanoğlu", "Mikel Oyarzabal", "Robert Lewandowski", "Ante Budimir"],
+                start=1,
+            )
+        ]
+        return {
+            "scenarios": scenarios,
+            "sensitivity_curves": curves,
+            "shooter_scouting": scouting,
+        }
+
+    def test_tc_e3_03a_deliverable_builders_and_zero_stale_draft(self) -> None:
+        mart = self._build_minimal_mart_fixture()
+        cells = ged.build_etapa2_cell_texts(mart)
+        self.assertEqual(list(cells.keys()), ["B", "C", "D", "E", "F", "G", "H"])
+
+        stale_markers = [
+            "136 pênaltis",
+            "136 penaltis",
+            "StatsBomb",
+            "regressão logística",
+            "regressao logistica",
+            "não informa para que lado o goleiro pulou",
+        ]
+        joined = "\n".join(cells.values())
+        self.assertNotIn("\u2014", joined)
+        for marker in stale_markers:
+            self.assertNotIn(marker, joined)
+        for expected in ("15.726", "1.377", "Primal", "Dual", "13,94%", "Excel Solver", "BigQuery"):
+            self.assertIn(expected, joined)
+
+        md_text = ged.render_etapa2_3_markdown(mart)
+        self.assertNotIn("\u2014", md_text)
+        for sc_code in ("C1_GLOBAL", "C2_RIGHT_FOOT", "C3_LEFT_FOOT", "C4_CLUTCH", "C5_FORWARDS", "C6_MID_DEF"):
+            self.assertIn(sc_code, md_text)
+        for star in sas.FEATURED_GLOVE_STARS:
+            self.assertIn(star, md_text)
+        self.assertIn("19/11", md_text)
+
+    def test_tc_e3_03b_repo_docs_and_xlsm_sync(self) -> None:
+        if TEST_MODE == "fast":
+            self.skipTest("Modo fast ativo: pulando auditoria de arquivos consolidados em docs/.")
+
+        mart = ged.load_mart_payload()
+        expected_cells = ged.build_etapa2_cell_texts(mart)
+
+        # 1. Verifica relatorio Markdown Etapas 2 e 3
+        self.assertTrue(ged.REPORT_MD_PATH.exists())
+        md_text = ged.REPORT_MD_PATH.read_text(encoding="utf-8")
+        self.assertNotIn("\u2014", md_text)
+        self.assertIn("15.726", md_text)
+        self.assertIn("13.94%", md_text)
+        self.assertIn("66 pontos", md_text)
+        self.assertIn("| `C4_CLUTCH` | 14.12% | `theta = 0.5` | `theta = 0.6` |", md_text)
+        for star in sas.FEATURED_GLOVE_STARS:
+            self.assertIn(star, md_text)
+
+        # 2. Verifica planilha oficial atualizada (.xlsm) preservando abas e Grupo 11
+        self.assertTrue(ged.OFFICIAL_XLSM_PATH.exists())
+        wb = openpyxl.load_workbook(ged.OFFICIAL_XLSM_PATH, keep_vba=True)
+        self.assertEqual(
+            wb.sheetnames,
+            [
+                "Projeto Final - Etapa 1 Em sala",
+                "Projeto Final Etapa 2 - Modelag",
+                "Semana 10 - 1911 Reunião com ca",
+            ],
+        )
+        ws_et2 = wb[ged.ETAPA2_SHEET_NAME]
+        self.assertEqual(ws_et2["A3"].value, "Grupo 11")
+        for col_letter, expected_text in expected_cells.items():
+            actual_val = str(ws_et2[f"{col_letter}3"].value or "")
+            self.assertNotIn("\u2014", actual_val)
+            self.assertNotIn("StatsBomb", actual_val)
+            self.assertEqual(actual_val, expected_text)
+
+        ws_s10 = wb["Semana 10 - 1911 Reunião com ca"]
+        self.assertEqual(ws_s10["A11"].value, "16h30 - 16h45")
+        self.assertEqual(ws_s10["B11"].value, 11)
+
+
 STAGE_REGISTRY: dict[str, list[type[unittest.TestCase]]] = {
     "E1": [TestE1Governance],
     "E2-T01": [TestE2T01BronzeIngestion],
@@ -530,7 +699,8 @@ STAGE_REGISTRY: dict[str, list[type[unittest.TestCase]]] = {
     "E2": [TestE2T01BronzeIngestion, TestE2T02SilverBase, TestE2T03SilverEnrichment],
     "E3-T01": [TestE3T01GoldNashSolver],
     "E3-T02": [TestE3T02SensitivityScouting],
-    "E3": [TestE3T01GoldNashSolver, TestE3T02SensitivityScouting],
+    "E3-T03": [TestE3T03DocumentationAndXlsm],
+    "E3": [TestE3T01GoldNashSolver, TestE3T02SensitivityScouting, TestE3T03DocumentationAndXlsm],
     "ALL": [
         TestE1Governance,
         TestE2T01BronzeIngestion,
@@ -538,6 +708,7 @@ STAGE_REGISTRY: dict[str, list[type[unittest.TestCase]]] = {
         TestE2T03SilverEnrichment,
         TestE3T01GoldNashSolver,
         TestE3T02SensitivityScouting,
+        TestE3T03DocumentationAndXlsm,
     ],
 }
 
