@@ -796,7 +796,7 @@ class TestE4T01PortfolioCore(BasePOTestCase):
         self.assertIn("@layer reset, tokens, base, layout, components, utilities;", css_text)
         self.assertIn("@media (prefers-reduced-motion: reduce)", css_text)
         self.assertIn("@media (forced-colors: active)", css_text)
-        self.assertIn("@container (width < 600px)", css_text)
+        self.assertIn("@container (width < 520px)", css_text)
         self.assertIsNone(re.search(r"^\s*\*\s*[,{]", css_text, re.MULTILINE))
 
         node_bin = shutil.which("node")
@@ -1063,6 +1063,375 @@ const browserWsUrl = process.argv[2];
             shutil.rmtree(tmp_profile, ignore_errors=True)
 
 
+def _extract_js_function(js_source: str, func_name: str) -> str:
+    """Extract a top-level helper function body by balanced braces for Node unit verification."""
+    marker = f"function {func_name}("
+    start = js_source.index(marker)
+    brace_start = js_source.index("{", start)
+    depth = 0
+    for idx in range(brace_start, len(js_source)):
+        ch = js_source[idx]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return js_source[start : idx + 1]
+    raise AssertionError(f"Nao foi possivel extrair funcao JS: {func_name}")
+
+
+class TestE4T02CoachDashboard(BasePOTestCase):
+    """Casos de Teste TC-E4-02A e TC-E4-02B (Secao 4 Treinador: Heatmap 3x3, Slider theta e Curva)."""
+
+    def test_tc_e4_02a_coach_section_contracts_and_js_simplex_accuracy(self) -> None:
+        html_text = (REPO_ROOT / "index.html").read_text(encoding="utf-8")
+        css_text = (REPO_ROOT / "web" / "css" / "styles.css").read_text(encoding="utf-8")
+        js_text = (REPO_ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
+
+        sec4_match = re.search(
+            r'<section id="sec-4-treinador"[^>]*>(.*?)</section>',
+            html_text,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(sec4_match, "Secao #sec-4-treinador nao encontrada em index.html.")
+        sec4_html = sec4_match.group(1)
+        self.assertNotIn("Em implementacao na entrega E4-T02", sec4_html)
+
+        for marker in (
+            'class="coach-controls-fieldset"',
+            "<legend>",
+            'id="coach-scenario-select"',
+            'id="coach-theta-slider"',
+            'type="range"',
+            'id="coach-theta-output"',
+            'for="coach-theta-slider"',
+            'id="coach-kpis"',
+            'id="coach-mix-panel"',
+            'id="coach-heatmap-body"',
+            'id="coach-sensitivity-svg"',
+            'id="coach-overview-body"',
+            'type="button"',
+        ):
+            self.assertIn(marker, sec4_html, f"Marcador ausente em #sec-4-treinador: {marker}")
+
+        self.assertIn("::-webkit-slider-runnable-track", css_text)
+        self.assertIn("::-moz-range-track", css_text)
+        self.assertIn("@supports not (opacity: progress(1, 0, 100))", css_text)
+        self.assertIsNone(
+            re.search(r"::-webkit-slider-[^,{]*,\s*[^{]*::-moz-range", css_text),
+            "Regra CSS nao deve combinar pseudo-elementos WebKit e Firefox na mesma lista.",
+        )
+
+        node_bin = shutil.which("node")
+        if node_bin:
+            solver_js = _extract_js_function(js_text, "extractMatrixAndEmpirical")
+            solver_fn = _extract_js_function(js_text, "solveZeroSum3x3")
+            eval_fn = _extract_js_function(js_text, "evaluateCoachAtTheta")
+            mart_path = (REPO_ROOT / "data" / "processed" / "po_penalties_mart.json").as_posix()
+
+            node_check = f"""
+const fs = require("fs");
+const ZONES = ["L", "C", "R"];
+{solver_js}
+{solver_fn}
+{eval_fn}
+const mart = JSON.parse(fs.readFileSync({json.dumps(mart_path)}, "utf8"));
+let maxVDiff = 0;
+let maxPDiff = 0;
+let maxEvDiff = 0;
+let maxFloorDiff = 0;
+for (const pt of mart.sensitivity_curves) {{
+  const sc = mart.scenarios.find((s) => s.scenario_code === pt.scenario_code);
+  const res = evaluateCoachAtTheta(sc, pt.theta);
+  maxVDiff = Math.max(maxVDiff, Math.abs(res.vStar - pt.game_value_v_primal));
+  maxEvDiff = Math.max(maxEvDiff, Math.abs(res.evVsEmp - pt.expected_vs_empirical_rate));
+  maxFloorDiff = Math.max(maxFloorDiff, Math.abs(res.worstFloor - pt.worst_case_floor_rate));
+  maxPDiff = Math.max(
+    maxPDiff,
+    Math.abs(res.p[0] - pt.gk_opt_L),
+    Math.abs(res.p[1] - pt.gk_opt_C),
+    Math.abs(res.p[2] - pt.gk_opt_R)
+  );
+}}
+console.log(JSON.stringify({{ count: mart.sensitivity_curves.length, maxVDiff, maxPDiff, maxEvDiff, maxFloorDiff }}));
+"""
+            run = subprocess.run(
+                [node_bin, "-e", node_check],
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=True,
+            )
+            stats = json.loads(run.stdout)
+            self.assertEqual(stats["count"], 66)
+            self.assertLess(stats["maxVDiff"], 1e-5)
+            self.assertLess(stats["maxPDiff"], 1e-5)
+            self.assertLess(stats["maxEvDiff"], 1e-5)
+            self.assertLess(stats["maxFloorDiff"], 1e-5)
+
+    def test_tc_e4_02b_coach_browser_interactive_recalculation_and_responsive(self) -> None:
+        if TEST_MODE == "fast":
+            self.skipTest("Modo fast ativo: pulando verificacao em navegador headless.")
+
+        browser_bin = _find_chromium_binary()
+        node_bin = shutil.which("node")
+        if not browser_bin or not node_bin:
+            self.skipTest("Chrome/Edge ou Node indisponivel neste ambiente.")
+
+        class _ReusableServer(socketserver.ThreadingTCPServer):
+            allow_reuse_address = True
+
+        httpd = _ReusableServer(("127.0.0.1", 0), _QuietRepoHTTPHandler)
+        port = httpd.server_address[1]
+        server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        server_thread.start()
+
+        tmp_profile = tempfile.mkdtemp(prefix="po-e4t02-chrome-")
+        proc = subprocess.Popen(
+            [
+                browser_bin,
+                "--headless=new",
+                "--disable-gpu",
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--remote-debugging-port=0",
+                f"--user-data-dir={tmp_profile}",
+                "about:blank",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+        try:
+            port_file = Path(tmp_profile) / "DevToolsActivePort"
+            for _ in range(80):
+                if port_file.exists() and port_file.read_text(encoding="utf-8").strip():
+                    break
+                time.sleep(0.1)
+            self.assertTrue(port_file.exists(), "DevToolsActivePort nao foi criado pelo browser headless.")
+            cdp_lines = port_file.read_text(encoding="utf-8").strip().splitlines()
+            cdp_port = int(cdp_lines[0])
+
+            node_script = r"""
+const url = process.argv[1];
+const cdpPort = process.argv[2];
+
+(async () => {
+  const targets = await (await fetch(`http://127.0.0.1:${cdpPort}/json`)).json();
+  const pageTarget = targets.find((t) => t.type === "page") || targets[0];
+  const ws = new WebSocket(pageTarget.webSocketDebuggerUrl);
+  let seq = 0;
+  const pending = new Map();
+  const events = [];
+
+  const send = (method, params = {}) =>
+    new Promise((resolve, reject) => {
+      const id = ++seq;
+      pending.set(id, { resolve, reject });
+      ws.send(JSON.stringify({ id, method, params }));
+    });
+
+  ws.addEventListener("message", (ev) => {
+    const msg = JSON.parse(ev.data);
+    if (msg.id && pending.has(msg.id)) {
+      const { resolve, reject } = pending.get(msg.id);
+      pending.delete(msg.id);
+      if (msg.error) reject(new Error(JSON.stringify(msg.error)));
+      else resolve(msg.result);
+    } else if (msg.method) {
+      events.push(msg);
+    }
+  });
+
+  await new Promise((r) => ws.addEventListener("open", r));
+  await send("Page.enable");
+  await send("Runtime.enable");
+  await send("Log.enable");
+  await send("Network.enable");
+
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: 1440,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await send("Page.navigate", { url });
+
+  for (let i = 0; i < 40; i++) {
+    const ready = await send("Runtime.evaluate", {
+      returnByValue: true,
+      expression: `document.querySelectorAll("#coach-overview-body tr").length === 6 && document.querySelectorAll("#coach-sensitivity-svg polyline").length === 3`,
+    });
+    if (ready.result.value) break;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+
+  const state = await send("Runtime.evaluate", {
+    returnByValue: true,
+    expression: `(() => {
+      const sel = document.getElementById("coach-scenario-select");
+      const slider = document.getElementById("coach-theta-slider");
+      const out = document.getElementById("coach-theta-output");
+      const kpis = document.getElementById("coach-kpis");
+      const mix = document.getElementById("coach-mix-panel");
+      const heat = document.getElementById("coach-heatmap-body");
+      const readout = document.getElementById("coach-chart-readout");
+      const svg = document.getElementById("coach-sensitivity-svg");
+
+      const init = {
+        options: sel.options.length,
+        overviewRows: document.querySelectorAll("#coach-overview-body tr").length,
+        kpisText: kpis.textContent,
+        heatRows: heat.querySelectorAll("tr").length,
+        svgPolylines: svg.querySelectorAll("polyline").length,
+      };
+
+      slider.value = "0.85";
+      slider.dispatchEvent(new Event("input", { bubbles: true }));
+      const afterSliderC1 = {
+        output: out.textContent,
+        valuetext: slider.getAttribute("aria-valuetext") || "",
+        kpisText: kpis.textContent,
+        mixText: mix.textContent,
+        heatText: heat.textContent,
+        readoutText: readout.textContent,
+        circles: svg.querySelectorAll("circle").length,
+      };
+
+      document.querySelector('[data-coach-pick="C3_LEFT_FOOT"]').click();
+      slider.value = "0";
+      slider.dispatchEvent(new Event("input", { bubbles: true }));
+      const c3Nash = {
+        selected: sel.value,
+        kpisText: kpis.textContent,
+        mixText: mix.textContent,
+      };
+
+      document.getElementById("coach-preset-crit").click();
+      const c3Crit = {
+        sliderVal: slider.value,
+        kpisText: kpis.textContent,
+        mixText: mix.textContent,
+      };
+
+      return { init, afterSliderC1, c3Nash, c3Crit };
+    })()`,
+  });
+
+  const overflow1440 = await send("Runtime.evaluate", {
+    returnByValue: true,
+    expression: `document.documentElement.scrollWidth > document.documentElement.clientWidth`,
+  });
+
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: 390,
+    height: 844,
+    deviceScaleFactor: 1,
+    mobile: true,
+  });
+  await new Promise((r) => setTimeout(r, 250));
+  const overflow390 = await send("Runtime.evaluate", {
+    returnByValue: true,
+    expression: `document.documentElement.scrollWidth > document.documentElement.clientWidth`,
+  });
+
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: 320,
+    height: 640,
+    deviceScaleFactor: 1,
+    mobile: true,
+  });
+  await new Promise((r) => setTimeout(r, 250));
+  const m320 = await send("Runtime.evaluate", {
+    returnByValue: true,
+    expression: `({
+      overflow320: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      sw320: document.documentElement.scrollWidth,
+    })`,
+  });
+
+  const consoleErrors = events.filter(
+    (e) => e.method === "Runtime.consoleAPICalled" && ["error", "warning"].includes(e.params.type)
+  );
+  const exceptions = events.filter((e) => e.method === "Runtime.exceptionThrown");
+  const logErrors = events.filter(
+    (e) => e.method === "Log.entryAdded" && ["error", "warning"].includes(e.params.entry.level)
+  );
+  const httpErrors = events.filter(
+    (e) => e.method === "Network.responseReceived" && e.params.response.status >= 400
+  );
+  const netFails = events.filter((e) => e.method === "Network.loadingFailed");
+
+  console.log(
+    JSON.stringify({
+      state: state.result.value,
+      overflow1440: overflow1440.result.value,
+      overflow390: overflow390.result.value,
+      m320: m320.result.value,
+      consoleErrors,
+      exceptions,
+      logErrors,
+      httpErrors,
+      netFails,
+    })
+  );
+  ws.close();
+})();
+"""
+            node_run = subprocess.run(
+                [node_bin, "-e", node_script, f"http://127.0.0.1:{port}/index.html", str(cdp_port)],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=True,
+            )
+            report = json.loads(node_run.stdout)
+
+            self.assertEqual(report["consoleErrors"], [], f"Console errors: {report['consoleErrors']}")
+            self.assertEqual(report["exceptions"], [], f"JS exceptions: {report['exceptions']}")
+            self.assertEqual(report["logErrors"], [], f"Browser log errors: {report['logErrors']}")
+            self.assertEqual(report["httpErrors"], [], f"HTTP >=400 errors: {report['httpErrors']}")
+            self.assertEqual(report["netFails"], [], f"Network failures: {report['netFails']}")
+
+            st = report["state"]
+            self.assertEqual(st["init"]["options"], 6)
+            self.assertEqual(st["init"]["overviewRows"], 6)
+            self.assertEqual(st["init"]["heatRows"], 3)
+            self.assertEqual(st["init"]["svgPolylines"], 3)
+            self.assertIn("13,94%", st["init"]["kpisText"])
+            self.assertIn("Protegido", st["init"]["kpisText"])
+
+            after_c1 = st["afterSliderC1"]
+            self.assertIn("0,85", after_c1["output"])
+            self.assertIn("theta 0,85", after_c1["valuetext"])
+            self.assertIn("Alerta Exploratorio", after_c1["kpisText"])
+            self.assertIn("2,86%", after_c1["kpisText"])
+            self.assertIn("100,0%", after_c1["mixText"])
+            self.assertIn("21,72%", after_c1["heatText"])
+            self.assertIn("0,85", after_c1["readoutText"])
+            self.assertEqual(after_c1["circles"], 3)
+
+            c3_nash = st["c3Nash"]
+            self.assertEqual(c3_nash["selected"], "C3_LEFT_FOOT")
+            self.assertIn("12,14%", c3_nash["kpisText"])
+            self.assertIn("49,1%", c3_nash["mixText"])
+
+            c3_crit = st["c3Crit"]
+            self.assertGreaterEqual(float(c3_crit["sliderVal"]), 0.50)
+            self.assertIn("Alerta Exploratorio", c3_crit["kpisText"])
+
+            self.assertFalse(report["overflow1440"])
+            self.assertFalse(report["overflow390"])
+            self.assertFalse(report["m320"]["overflow320"], f"Overflow em 320px: {report['m320']}")
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+            with contextlib.suppress(Exception):
+                proc.terminate()
+                proc.wait(timeout=5)
+            shutil.rmtree(tmp_profile, ignore_errors=True)
+
+
 STAGE_REGISTRY: dict[str, list[type[unittest.TestCase]]] = {
     "E1": [TestE1Governance],
     "E2-T01": [TestE2T01BronzeIngestion],
@@ -1074,7 +1443,8 @@ STAGE_REGISTRY: dict[str, list[type[unittest.TestCase]]] = {
     "E3-T03": [TestE3T03DocumentationAndXlsm],
     "E3": [TestE3T01GoldNashSolver, TestE3T02SensitivityScouting, TestE3T03DocumentationAndXlsm],
     "E4-T01": [TestE4T01PortfolioCore],
-    "E4": [TestE4T01PortfolioCore],
+    "E4-T02": [TestE4T02CoachDashboard],
+    "E4": [TestE4T01PortfolioCore, TestE4T02CoachDashboard],
     "ALL": [
         TestE1Governance,
         TestE2T01BronzeIngestion,
@@ -1084,6 +1454,7 @@ STAGE_REGISTRY: dict[str, list[type[unittest.TestCase]]] = {
         TestE3T02SensitivityScouting,
         TestE3T03DocumentationAndXlsm,
         TestE4T01PortfolioCore,
+        TestE4T02CoachDashboard,
     ],
 }
 

@@ -521,19 +521,143 @@
       </div>
     </section>
 
-    <section id="sec-4-treinador" class="page-section roadmap-band">
+    <section id="sec-4-treinador" class="page-section alt-band">
       <div class="container">
         <div class="section-header">
-          <span class="section-kicker">Secao 4 | Proxima Entrega E4-T02</span>
-          <h2>Visao Tecnica do Treinador: 6 Cenarios, Heatmap 3x3 e Slider \(\theta\)</h2>
+          <span class="section-kicker">Secao 4 | Visao Tecnica do Treinador de Goleiros (E4-T02)</span>
+          <h2>Painel Tatico: 6 Cenarios, Heatmap 3x3 e Sensibilidade \(\theta\)</h2>
           <p class="section-intro">
-            Secao reservada para o painel interativo completo de analise tatica (seletor comparativo dos 6 cenarios, mapa de calor 3x3, controle deslizante continuo \(\theta \in [0, 1]\) e grafico da curva \(V^*(\theta)\) vs piso de risco).
+            Painel pre-jogo da comissao tecnica para calibrar a transicao entre protecao Minimax (\(\theta = 0\)) e exploracao do relatorio de scouting (\(\theta = 1\)).
+            Mover \(\theta\) recalcula em tempo real a matriz \(A(\theta)\), a mistura otima \(p^*(\theta)\), o valor garantido \(V^*(\theta)\) e a queda do piso defensivo \(Fl(p^*)\).
           </p>
         </div>
-        <div class="roadmap-stub">
-          <span class="pill">Em implementacao na entrega E4-T02</span>
-          <p>A infraestrutura de dados Gold (<code>mart_sensitivity_theta</code> com 66 pontos) ja esta conectada em <code>po_penalties_mart.json</code> e pronta para hidratar esta visualizacao.</p>
-        </div>
+
+        <article class="surface-card coach-cockpit">
+          <fieldset class="coach-controls-fieldset">
+            <legend>Parametros Taticos de Simulacao (\(\theta \in [0, 1]\))</legend>
+            <div class="coach-controls-grid">
+              <div class="control-group coach-select-group">
+                <label for="coach-scenario-select">Cenario analitico (BigQuery Gold):</label>
+                <select id="coach-scenario-select" name="coach_scenario">
+                  <option value="C1_GLOBAL">1. Global (Todas as Cobrancas Espaciais)</option>
+                </select>
+                <span class="control-hint" id="coach-scenario-meta">n = 1.377 cobrancas | Empirical Bayes alpha = 0,0</span>
+              </div>
+
+              <div class="control-group coach-slider-group">
+                <div class="slider-header">
+                  <label for="coach-theta-slider">Confianca no scouting empirico (\(\theta\)):</label>
+                  <output id="coach-theta-output" for="coach-theta-slider" class="theta-output num">0,00 (Minimax Puro)</output>
+                </div>
+                <input
+                  type="range"
+                  id="coach-theta-slider"
+                  name="theta"
+                  class="theta-slider"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0"
+                  aria-describedby="coach-theta-hint"
+                >
+                <div class="slider-scale" aria-hidden="true">
+                  <span>0,00 (Nash Puro)</span>
+                  <span id="coach-theta-break-label">Ruptura --</span>
+                  <span>1,00 (Scouting Total)</span>
+                </div>
+                <span id="coach-theta-hint" class="control-hint">
+                  Arraste ou use as setas do teclado: para \(\theta &lt; \theta_{\text{crit}}\), \(p^*\) permanece identico ao Equilibrio de Nash sem perda defensiva.
+                </span>
+                <div class="theta-presets" role="group" aria-label="Atalhos rapidos de theta">
+                  <button type="button" class="theta-preset-btn" data-theta="0" aria-pressed="true">Nash (0,00)</button>
+                  <button type="button" class="theta-preset-btn" data-theta="0.5" aria-pressed="false">Hibrido (0,50)</button>
+                  <button type="button" class="theta-preset-btn" id="coach-preset-crit" data-theta="0.69" aria-pressed="false">Ruptura (0,69)</button>
+                  <button type="button" class="theta-preset-btn" data-theta="1" aria-pressed="false">Empirico (1,00)</button>
+                </div>
+              </div>
+            </div>
+          </fieldset>
+
+          <div class="coach-kpis" id="coach-kpis" aria-live="polite">
+            <!-- Hydrated from po_penalties_mart.json + live LP recalculation -->
+          </div>
+
+          <div class="coach-mix-panel" id="coach-mix-panel">
+            <!-- Live optimal GK mixed strategy p*(theta) bars vs pure Nash p*(0) -->
+          </div>
+
+          <div class="coach-visual-grid">
+            <div class="coach-panel">
+              <div class="coach-panel-head">
+                <h3>4.1 Matriz Heatmap 3x3 \(A(\theta)\)</h3>
+                <p id="coach-heatmap-note">Cada celula combina a matriz regularizada \(A\) e o vetor historico do batedor via \(A_{ij}(\theta) = \theta(Aq_{\text{emp}})_i + (1-\theta)a_{ij}\).</p>
+              </div>
+              <div tabindex="0" role="region" aria-labelledby="coach-heatmap-caption" class="table-wrapper">
+                <table class="data-table heatmap-table">
+                  <caption id="coach-heatmap-caption">Matriz heatmap 3x3 de payoff ajustado A(theta) e distribuicao mista otima do goleiro</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Acao Goleiro (\(p_i^*\))</th>
+                      <th scope="col">Chute L</th>
+                      <th scope="col">Chute C</th>
+                      <th scope="col">Chute R</th>
+                    </tr>
+                  </thead>
+                  <tbody id="coach-heatmap-body">
+                    <!-- Hydrated 3x3 heatmap cells -->
+                  </tbody>
+                  <tfoot id="coach-heatmap-foot">
+                    <!-- Hydrated corner guarantee & empirical expectation -->
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+
+            <div class="coach-panel">
+              <div class="coach-panel-head">
+                <h3>4.2 Curva de Sensibilidade Parametrica (\(\theta \in [0, 1]\))</h3>
+                <p id="coach-chart-note">Clique ou deslize no grafico para testar \(\theta\): observe o valor hibrido \(V^*(\theta)\), a expectativa real e o degrau de queda do piso defensivo \(Fl(p^*)\).</p>
+              </div>
+              <ul class="chart-legend" aria-label="Legenda da curva de sensibilidade">
+                <li><span class="legend-swatch swatch-vstar" aria-hidden="true"></span><span>\(V^*(\theta)\) Hibrido</span></li>
+                <li><span class="legend-swatch swatch-ev" aria-hidden="true"></span><span>Expectativa Empirica \(E_{\text{emp}}\)</span></li>
+                <li><span class="legend-swatch swatch-floor" aria-hidden="true"></span><span>Piso Defensivo \(Fl(p^*)\)</span></li>
+              </ul>
+              <div class="sensitivity-chart-wrap" id="coach-sensitivity-chart-wrap">
+                <svg id="coach-sensitivity-svg" viewBox="0 0 680 310" role="img" aria-labelledby="coach-svg-title coach-svg-desc">
+                  <title id="coach-svg-title">Curva de sensibilidade parametrica theta entre 0 e 1</title>
+                  <desc id="coach-svg-desc">Comparacao entre V*(theta), expectativa contra batedor empirico e piso de pior cenario defensivo para o cenario selecionado.</desc>
+                </svg>
+              </div>
+              <p class="chart-live-readout" id="coach-chart-readout" aria-live="polite"></p>
+            </div>
+          </div>
+
+          <div class="coach-overview-panel">
+            <div class="coach-panel-head">
+              <h3>4.3 Mapa Comparativo dos 6 Cenarios Gold (Clique para Inspecionar)</h3>
+              <p>Sintese dos equilibrios Nash puros (\(p^*(0), V^*(0)\)), ponto de transicao \(\theta_{\text{crit}}\) e canto empirico alvo de cada subgrupo analitico.</p>
+            </div>
+            <div tabindex="0" role="region" aria-labelledby="coach-overview-caption" class="table-wrapper">
+              <table class="data-table overview-table">
+                <caption id="coach-overview-caption">Comparativo dos 6 cenarios Gold com amostra, valor de Nash, mistura otima e fronteira critica de confianca</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Cenario</th>
+                    <th scope="col">Amostra (n)</th>
+                    <th scope="col">\(V^*(0)\) Nash</th>
+                    <th scope="col">Mistura \(p^*(0)\)</th>
+                    <th scope="col">Ruptura \(\theta_{\text{crit}}\)</th>
+                    <th scope="col">Alvo (\(\theta=1\))</th>
+                  </tr>
+                </thead>
+                <tbody id="coach-overview-body">
+                  <!-- Hydrated 6 scenarios comparison rows -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </article>
       </div>
     </section>
 

@@ -36,7 +36,11 @@
   label,
   button,
   input,
-  select {
+  select,
+  fieldset,
+  legend,
+  output,
+  svg {
     box-sizing: border-box;
   }
 
@@ -78,9 +82,14 @@
     --secondary-accent: #1d4ed8;
     --secondary-subtle: #eff6ff;
     --warning-accent: #9a3412;
+    --risk-accent: #b91c1c;
+    --risk-subtle: #fef2f2;
+    --heat-rgb: 4, 108, 78;
+    --slider-track-bg: #cbd5e1;
     --border-subtle: #94a3b8;
     --border-control: #475569;
     --focus-ring: #b45309;
+    accent-color: var(--accent);
     --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
     --font-mono: "JetBrains Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
     --radius-sm: 0.375rem;
@@ -109,9 +118,14 @@
       --secondary-accent: #60a5fa;
       --secondary-subtle: #172554;
       --warning-accent: #fbbf24;
+      --risk-accent: #f87171;
+      --risk-subtle: #450a0a;
+      --heat-rgb: 52, 211, 153;
+      --slider-track-bg: #334155;
       --border-subtle: #475569;
       --border-control: #94a3b8;
       --focus-ring: #fbbf24;
+      accent-color: var(--accent);
       --shadow-card: 0 2px 6px rgb(0 0 0 / 0.35);
     }
   }
@@ -133,9 +147,14 @@
     --secondary-accent: #60a5fa;
     --secondary-subtle: #172554;
     --warning-accent: #fbbf24;
+    --risk-accent: #f87171;
+    --risk-subtle: #450a0a;
+    --heat-rgb: 52, 211, 153;
+    --slider-track-bg: #334155;
     --border-subtle: #475569;
     --border-control: #94a3b8;
     --focus-ring: #fbbf24;
+    accent-color: var(--accent);
     --shadow-card: 0 2px 6px rgb(0 0 0 / 0.35);
   }
 }
@@ -1057,6 +1076,8 @@
     --label-2: "Coluna 2";
     --label-3: "Coluna 3";
     --label-4: "Coluna 4";
+    --label-5: "Coluna 5";
+    --label-6: "Coluna 6";
   }
 
   .etl-table {
@@ -1070,10 +1091,19 @@
     --label-3: "Goleiro em Campo";
   }
 
-  .matrix-table {
+  .matrix-table,
+  .heatmap-table {
     --label-2: "Chute L";
     --label-3: "Chute C";
     --label-4: "Chute R";
+  }
+
+  .overview-table {
+    --label-2: "Amostra (n)";
+    --label-3: "V*(0) Nash";
+    --label-4: "Mistura p*(0)";
+    --label-5: "Ruptura theta_crit";
+    --label-6: "Alvo (theta=1)";
   }
 
   .data-table caption {
@@ -1125,8 +1155,9 @@
     font-weight: 600;
   }
 
-  @container (width < 600px) {
+  @container (width < 520px) {
     .data-table,
+    .data-table caption,
     .data-table thead,
     .data-table tbody,
     .data-table tfoot,
@@ -1173,6 +1204,497 @@
       font-weight: 700;
       color: var(--ink-primary);
     }
+
+    .data-table td:nth-child(5)::before {
+      content: var(--label-5) ": ";
+      font-weight: 700;
+      color: var(--ink-primary);
+    }
+
+    .data-table td:nth-child(6)::before {
+      content: var(--label-6) ": ";
+      font-weight: 700;
+      color: var(--ink-primary);
+    }
+  }
+
+  /* Section 4: Coach Technical Cockpit, Heatmap & Range Slider (modern-web-guidance slider & forms patterns) */
+  .coach-cockpit {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.35rem;
+  }
+
+  .coach-cockpit > *,
+  .coach-controls-grid > *,
+  .coach-kpis > *,
+  .coach-visual-grid > *,
+  .coach-panel > *,
+  .coach-overview-panel > * {
+    min-inline-size: 0;
+  }
+
+  .coach-controls-fieldset {
+    margin: 0;
+    padding: clamp(0.95rem, 0.85rem + 0.5vw, 1.35rem);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background-color: var(--surface-inset);
+  }
+
+  .coach-controls-fieldset legend {
+    padding-inline: 0.5rem;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--ink-primary);
+  }
+
+  .coach-controls-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+    gap: 1.25rem;
+    align-items: start;
+  }
+
+  .coach-select-group select {
+    inline-size: 100%;
+    font: inherit;
+    font-size: max(1rem, 1em);
+    min-block-size: 2.75rem;
+  }
+
+  .control-hint {
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: var(--ink-muted);
+    overflow-wrap: anywhere;
+  }
+
+  .slider-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+
+  .theta-output {
+    display: inline-block;
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    background-color: var(--accent-subtle);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+
+  /* Native range slider styling (separate WebKit & Firefox blocks per slider guide) */
+  input[type="range"].theta-slider {
+    --slider-track-size: 0.55rem;
+    --slider-thumb-size: 1.35rem;
+    --slider-track-radius: 999px;
+    --slider-thumb-radius: 50%;
+    --slider-track-color: var(--slider-track-bg);
+    --slider-fill-color: var(--accent);
+    --slider-thumb-color: var(--accent);
+    --slider-direction: to right;
+    --attr-min: 0;
+    --attr-max: 1;
+    --control-value: 0;
+    --slider-progress: calc(progress(var(--control-value), var(--attr-min), var(--attr-max)) * 100%);
+    appearance: none;
+    inline-size: 100%;
+    block-size: 2.75rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  @supports not (opacity: progress(1, 0, 100)) {
+    input[type="range"].theta-slider {
+      --slider-progress: calc(
+        (var(--control-value) - var(--attr-min)) /
+        (var(--attr-max) - var(--attr-min)) * 100%
+      );
+    }
+  }
+
+  input[type="range"].theta-slider::-webkit-slider-runnable-track {
+    block-size: var(--slider-track-size);
+    border: 0;
+    border-radius: var(--slider-track-radius);
+    background: linear-gradient(
+      var(--slider-direction),
+      var(--slider-fill-color) var(--slider-progress),
+      var(--slider-track-color) var(--slider-progress)
+    );
+  }
+
+  input[type="range"].theta-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    inline-size: var(--slider-thumb-size);
+    block-size: var(--slider-thumb-size);
+    margin-block-start: calc((var(--slider-track-size) - var(--slider-thumb-size)) / 2);
+    border: 2px solid var(--surface-card);
+    border-radius: var(--slider-thumb-radius);
+    background: var(--slider-thumb-color);
+    box-shadow: 0 1px 4px rgb(0 0 0 / 0.25);
+  }
+
+  input[type="range"].theta-slider::-moz-range-track {
+    block-size: var(--slider-track-size);
+    border: 0;
+    border-radius: var(--slider-track-radius);
+    background: var(--slider-track-color);
+  }
+
+  input[type="range"].theta-slider::-moz-range-progress {
+    block-size: var(--slider-track-size);
+    border-radius: var(--slider-track-radius);
+    background: var(--slider-fill-color);
+  }
+
+  input[type="range"].theta-slider::-moz-range-thumb {
+    inline-size: var(--slider-thumb-size);
+    block-size: var(--slider-thumb-size);
+    border: 2px solid var(--surface-card);
+    border-radius: var(--slider-thumb-radius);
+    background: var(--slider-thumb-color);
+  }
+
+  input[type="range"].theta-slider:focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 4px;
+  }
+
+  .slider-scale {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.78rem;
+    color: var(--ink-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .theta-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-block-start: 0.35rem;
+  }
+
+  .theta-preset-btn {
+    padding: 0.4rem 0.75rem;
+    min-block-size: 2.35rem;
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--ink-primary);
+    background-color: var(--surface-card);
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+  }
+
+  .theta-preset-btn[aria-pressed="true"] {
+    background-color: var(--accent);
+    color: var(--accent-ink);
+    border-color: var(--accent);
+  }
+
+  .theta-preset-btn:hover:not([aria-pressed="true"]) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .coach-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+    gap: 0.75rem;
+  }
+
+  .mini-stat-safe {
+    border-inline-start: 4px solid var(--accent);
+    background-color: var(--accent-subtle);
+  }
+
+  .mini-stat-alert {
+    border-inline-start: 4px solid var(--risk-accent);
+    background-color: var(--risk-subtle);
+  }
+
+  .regime-pill {
+    display: inline-block;
+    width: fit-content;
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    padding: 0.12rem 0.45rem;
+    border-radius: var(--radius-sm);
+  }
+
+  .regime-pill-safe {
+    background-color: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .regime-pill-alert {
+    background-color: var(--risk-accent);
+    color: #ffffff;
+  }
+
+  .coach-mix-panel {
+    padding: 1rem;
+    background-color: var(--surface-inset);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+
+  .mix-panel-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem 1rem;
+  }
+
+  .mix-panel-head h3 {
+    margin: 0;
+    font-size: 1rem;
+  }
+
+  .mix-panel-sub {
+    font-size: 0.82rem;
+    color: var(--ink-muted);
+  }
+
+  .mix-bars-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+    gap: 0.85rem;
+  }
+
+  .mix-bar-card {
+    padding: 0.75rem;
+    background-color: var(--surface-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .mix-bar-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+    font-size: 0.88rem;
+  }
+
+  .mix-bar-top strong {
+    font-size: 1.05rem;
+    color: var(--ink-primary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mix-track {
+    position: relative;
+    inline-size: 100%;
+    block-size: 0.65rem;
+    border-radius: 999px;
+    background-color: var(--surface-inset);
+    border: 1px solid var(--border-subtle);
+    overflow: hidden;
+  }
+
+  .mix-fill {
+    block-size: 100%;
+    background-color: var(--accent);
+    border-radius: 999px;
+  }
+
+  .mix-nash-ref {
+    position: absolute;
+    inset-block: 0;
+    inline-size: 3px;
+    background-color: var(--secondary-accent);
+    transform: translateX(-50%);
+  }
+
+  .mix-bar-foot {
+    font-size: 0.78rem;
+    color: var(--ink-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .coach-visual-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+    gap: 1.25rem;
+    align-items: start;
+  }
+
+  .coach-panel,
+  .coach-overview-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+
+  .coach-panel .table-wrapper,
+  .coach-overview-panel .table-wrapper {
+    max-block-size: none;
+  }
+
+  .coach-panel-head h3 {
+    margin-block-end: 0.25rem;
+    font-size: 1.05rem;
+  }
+
+  .coach-panel-head p {
+    font-size: 0.875rem;
+    color: var(--ink-muted);
+  }
+
+  .heatmap-table thead th,
+  .heatmap-table tbody th,
+  .heatmap-table tbody td,
+  .heatmap-table tfoot th,
+  .heatmap-table tfoot td {
+    padding: 0.55rem 0.65rem;
+  }
+
+  .heat-cell {
+    background-color: rgba(var(--heat-rgb), var(--heat-alpha, 0.06));
+  }
+
+  .heat-cell-main {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.4rem;
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: var(--ink-primary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .heat-delta {
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: var(--ink-muted);
+  }
+
+  .heat-bar {
+    margin-block: 0.35rem 0.25rem;
+    inline-size: 100%;
+    block-size: 0.35rem;
+    border-radius: 999px;
+    background-color: var(--surface-card);
+    border: 1px solid var(--border-subtle);
+    overflow: hidden;
+  }
+
+  .heat-bar > span {
+    display: block;
+    block-size: 100%;
+    background-color: var(--accent);
+  }
+
+  .heat-cell small {
+    display: block;
+    font-size: 0.76rem;
+    color: var(--ink-secondary);
+  }
+
+  .chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.15rem;
+    font-size: 0.82rem;
+    color: var(--ink-secondary);
+  }
+
+  .chart-legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .legend-swatch {
+    display: inline-block;
+    inline-size: 1rem;
+    block-size: 0.25rem;
+    border-radius: 999px;
+  }
+
+  .swatch-vstar {
+    background-color: var(--accent);
+  }
+
+  .swatch-ev {
+    background-color: var(--secondary-accent);
+  }
+
+  .swatch-floor {
+    background-color: var(--risk-accent);
+  }
+
+  .sensitivity-chart-wrap {
+    padding: 0.75rem;
+    background-color: var(--surface-inset);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+  }
+
+  #coach-sensitivity-svg {
+    display: block;
+    inline-size: 100%;
+    block-size: auto;
+    aspect-ratio: 680 / 310;
+    cursor: crosshair;
+    touch-action: none;
+  }
+
+  .chart-live-readout {
+    font-size: 0.85rem;
+    color: var(--ink-secondary);
+    padding: 0.6rem 0.8rem;
+    border-radius: var(--radius-sm);
+    background-color: var(--surface-inset);
+    border: 1px solid var(--border-subtle);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .overview-row-active th,
+  .overview-row-active td {
+    background-color: var(--accent-subtle) !important;
+  }
+
+  .scenario-pick-btn {
+    font: inherit;
+    font-weight: 700;
+    text-align: start;
+    color: var(--accent);
+    background: transparent;
+    border: 0;
+    padding: 0.15rem 0;
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+    cursor: pointer;
+  }
+
+  .scenario-pick-btn:hover {
+    color: var(--accent-hover);
   }
 
   /* Roadmap & Footer */
@@ -1232,19 +1754,34 @@
   .pipeline-step-btn,
   .site-menu,
   .table-wrapper,
-  .roadmap-stub {
+  .roadmap-stub,
+  .coach-controls-fieldset,
+  .coach-mix-panel,
+  .mix-bar-card,
+  .mix-track,
+  .heat-bar,
+  .sensitivity-chart-wrap,
+  .chart-live-readout,
+  .theta-preset-btn {
     border: 1px solid CanvasText;
     box-shadow: none;
   }
 
+  .mix-fill,
+  .heat-bar > span {
+    background-color: Highlight;
+  }
+
   .site-menu a[aria-current="page"],
-  [role="tab"][aria-selected="true"]::after {
+  [role="tab"][aria-selected="true"]::after,
+  .theta-preset-btn[aria-pressed="true"] {
     border-block-end-color: Highlight;
     color: HighlightText;
     background-color: Highlight;
   }
 
-  .pipeline-step-btn[aria-pressed="true"] {
+  .pipeline-step-btn[aria-pressed="true"],
+  input[type="range"].theta-slider:focus-visible {
     outline: 2px solid Highlight;
   }
 }
