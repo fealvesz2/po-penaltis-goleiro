@@ -1,7 +1,8 @@
 /**
- * Portfolio Web Grupo 11 (UFABC Q3/2026) - Modulo Base (Secoes 1 a 3)
+ * Portfolio Web Grupo 11 (UFABC Q3/2026) - Modulo Principal (Secoes 1 a 6)
  * Hidrata telemetria Gold de ./data/processed/po_penalties_mart.json,
- * renderiza equacoes KaTeX e gerencia componentes acessiveis (navbar, tabs, switch, ETL e verificador PL).
+ * renderiza equacoes KaTeX, executa Simplex 3x3 em tempo real (Treinador),
+ * Dossies de Vestiario + Roleta de Nash (Goleiro) e Tradutor Analista -> Campo + Auditoria Excel.
  */
 
 (() => {
@@ -496,6 +497,8 @@
     }
 
     setupCoachSection(mart);
+    setupGloveSection(mart);
+    setupBridgeSection(mart);
   }
 
   function extractMatrixAndEmpirical(scenario) {
@@ -993,6 +996,759 @@
     }
 
     updateDashboard();
+  }
+
+  function shooterToScenarioAdapter(shooter) {
+    const out = {
+      scenario_code: `SHOOTER_${shooter.scouting_rank}`,
+      scenario_label: `${shooter.player} (${shooter.dominant_foot === "left-foot" ? "Canhoto" : "Destro"}, ${fmtInt(shooter.spatial_kicks)} espaciais)`,
+      sample_size: shooter.spatial_kicks,
+      eb_alpha: shooter.eb_alpha,
+      total_missed: shooter.spatial_missed,
+      gk_nash_L: shooter.gk_nash_L,
+      gk_nash_C: shooter.gk_nash_C,
+      gk_nash_R: shooter.gk_nash_R,
+      shooter_emp_L: shooter.shot_pct_L,
+      shooter_emp_C: shooter.shot_pct_C,
+      shooter_emp_R: shooter.shot_pct_R,
+      game_value_v_primal: shooter.game_value_v_nash,
+      _shooter: shooter,
+    };
+    ZONES.forEach((gz) => {
+      ZONES.forEach((sz) => {
+        out[`a_${gz}_${sz}`] = shooter[`a_${gz}_${sz}`];
+      });
+    });
+    return out;
+  }
+
+  function allocateIntegerShares(probs, totalUnits = 100) {
+    const clean = probs.map((p) => Math.max(0, Number(p) || 0));
+    const sum = clean.reduce((acc, v) => acc + v, 0) || 1;
+    const scaled = clean.map((v, idx) => {
+      const exact = (v / sum) * totalUnits;
+      const base = Math.floor(exact);
+      return { idx, base, rem: exact - base };
+    });
+    let remaining = totalUnits - scaled.reduce((acc, item) => acc + item.base, 0);
+    const byRemainder = [...scaled].sort((a, b) => (b.rem !== a.rem ? b.rem - a.rem : a.idx - b.idx));
+    for (let k = 0; k < remaining; k++) {
+      byRemainder[k % byRemainder.length].base += 1;
+    }
+    return scaled.map((item) => item.base);
+  }
+
+  function buildRouletteBands(probs) {
+    const plainLabels = {
+      L: "Esquerda (E)",
+      C: "Centro (C)",
+      R: "Direita (D)",
+    };
+    const shares = allocateIntegerShares(probs, 100);
+    let cursor = 0;
+    return ZONES.map((zone, idx) => {
+      const count = shares[idx];
+      if (count <= 0) {
+        return {
+          zone,
+          label: plainLabels[zone],
+          pctInt: 0,
+          prob: probs[idx],
+          startTicket: null,
+          endTicket: null,
+          rangeText: "Nao sortear (0%)",
+        };
+      }
+      const startTicket = cursor;
+      const endTicket = cursor + count - 1;
+      cursor += count;
+      const pad = (n) => String(n).padStart(2, "0");
+      return {
+        zone,
+        label: plainLabels[zone],
+        pctInt: count,
+        prob: probs[idx],
+        startTicket,
+        endTicket,
+        rangeText: `${pad(startTicket)} a ${pad(endTicket)}`,
+      };
+    });
+  }
+
+  function drawUniformTicket() {
+    if (window.crypto && typeof window.crypto.getRandomValues === "function") {
+      const buf = new Uint32Array(1);
+      window.crypto.getRandomValues(buf);
+      return Math.floor((buf[0] / 4294967296) * 100);
+    }
+    return Math.floor(Math.random() * 100);
+  }
+
+  function resolveTicketBand(bands, ticket) {
+    return (
+      bands.find(
+        (b) => b.startTicket !== null && ticket >= b.startTicket && ticket <= b.endTicket
+      ) || bands.reduce((best, cur) => (cur.pctInt > best.pctInt ? cur : best), bands[0])
+    );
+  }
+
+  function formatPlayerSummaryPlain(shooter, snap) {
+    const isLeft = shooter.dominant_foot === "left-foot";
+    const footLabel = isLeft ? "Pe esquerdo" : "Pe direito";
+    const topZone = ZONES[snap.p.indexOf(Math.max(...snap.p))];
+    const topPct = Math.round(Math.max(...snap.p) * 100);
+    const plainDir = { L: "Esquerda", C: "Meio", R: "Direita" };
+    return {
+      footLabel,
+      topZone,
+      topLabel: `${plainDir[topZone]} (${topPct}%)`,
+    };
+  }
+
+  function buildGloveLockerTip(shooter, snap, modeTheta) {
+    const plainDir = { L: "Esquerda", C: "Centro", R: "Direita" };
+    const counts = [shooter.shot_count_L, shooter.shot_count_C, shooter.shot_count_R];
+    const favIdx = ZONES.indexOf(shooter.favorite_shot_zone);
+    const favCount = counts[favIdx];
+    const favPct = Math.round((favCount / (shooter.spatial_kicks || 1)) * 100);
+    const isLeft = shooter.dominant_foot === "left-foot";
+    const cornerFlavor =
+      shooter.favorite_tactical_corner === "Opposite"
+        ? "canto aberto (cruzado)"
+        : shooter.favorite_tactical_corner === "Natural"
+          ? "canto natural (fechado)"
+          : "faixa central";
+    const centerZeroNote =
+      shooter.shot_count_C === 0
+        ? `Mesmo sem nenhum chute registrado no meio (${shooter.shot_count_C}/${shooter.spatial_kicks}), `
+        : "";
+    const topGkIdx = snap.p.indexOf(Math.max(...snap.p));
+
+    if (modeTheta < 0.25) {
+      return `<strong>Leitura de vestiario:</strong> ${escapeHtml(shooter.player)} (${isLeft ? "canhoto" : "destro"}) bateu ${favCount} de ${shooter.spatial_kicks} penaltis (${favPct}%) na ${plainDir[shooter.favorite_shot_zone]} (${cornerFlavor}). ${centerZeroNote}no plano blindado a maior cobertura vai para <strong>${plainDir[ZONES[topGkIdx]]} (${Math.round(snap.p[topGkIdx] * 100)}%)</strong> sem deixar o centro descoberto (${Math.round(snap.p[1] * 100)}%), impedindo que ele mude o canto ao perceber movimento precoce.`;
+    }
+    if (modeTheta < 0.75) {
+      return `<strong>Ajuste equilibrado:</strong> Contra a tendencia historica de ${escapeHtml(shooter.player)} (${favPct}% em ${plainDir[shooter.favorite_shot_zone]}), o plano mistura a seguranca basica com a inclinacao de scouting. Se o batedor hesitar na passada, lembre que cair cedo demais para um unico lado derruba a protecao no pior cenario para <strong>${fmtPct(snap.worstFloor, 1)}</strong>.`;
+    }
+    return `<strong>Caca ao habito:</strong> Apostando totalmente no historico recente (${favCount}/${shooter.spatial_kicks} chutes em ${plainDir[shooter.favorite_shot_zone]}), a indicacao direta e saltar forte na <strong>${plainDir[ZONES[topGkIdx]]}</strong> (taxa esperada no habito dele: ${fmtPct(snap.evVsEmp, 1)}). Atencao: se o batedor trocar de lado nesta batida, a chance de defesa cai para <strong>${fmtPct(snap.worstFloor, 1)}</strong>.`;
+  }
+
+  function renderGloveGoalSvg(shooter, snap, activeZone) {
+    const svg = document.getElementById("glove-goal-svg");
+    const titleEl = document.getElementById("glove-goal-svg-title");
+    if (!svg) return;
+
+    const counts = [shooter.shot_count_L, shooter.shot_count_C, shooter.shot_count_R];
+    const shotPcts = [shooter.shot_pct_L, shooter.shot_pct_C, shooter.shot_pct_R];
+    const peakGkIdx = snap.p.indexOf(Math.max(...snap.p));
+    const laneNames = ["Esquerda (L)", "Centro (C)", "Direita (R)"];
+    const laneX = [36, 212, 388];
+    const laneW = 176;
+
+    const lanesMarkup = ZONES.map((zone, idx) => {
+      const x = laneX[idx];
+      const cx = x + laneW / 2;
+      const gkProb = snap.p[idx];
+      const shProb = shotPcts[idx];
+      const barMaxH = 88;
+      const gkH = Math.max(4, gkProb * barMaxH);
+      const shH = Math.max(4, shProb * barMaxH);
+      const isSpun = activeZone === zone;
+      const isPeak = idx === peakGkIdx;
+      const fillOpacity = (0.07 + gkProb * 0.34).toFixed(3);
+      const borderStroke = isSpun
+        ? "var(--focus-ring)"
+        : isPeak
+          ? "var(--accent)"
+          : "var(--border-subtle)";
+      const borderW = isSpun ? 3.5 : isPeak ? 2 : 1;
+
+      return `
+        <g>
+          <rect
+            x="${x + 4}"
+            y="40"
+            width="${laneW - 8}"
+            height="164"
+            rx="6"
+            fill="rgba(var(--heat-rgb), ${fillOpacity})"
+            stroke="${borderStroke}"
+            stroke-width="${borderW}"
+          />
+          <text x="${cx}" y="62" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink-primary)">
+            ${laneNames[idx]}
+          </text>
+          ${isSpun ? `<rect x="${cx - 50}" y="69" width="100" height="19" rx="9" fill="var(--focus-ring)" /><text x="${cx}" y="82" text-anchor="middle" font-size="10.5" font-weight="700" fill="#ffffff">ALVO SORTEADO</text>` : ""}
+          <rect x="${cx - 48}" y="${182 - gkH}" width="38" height="${gkH.toFixed(1)}" rx="4" fill="var(--accent)" />
+          <text x="${cx - 29}" y="${Math.max(98, 176 - gkH).toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--ink-primary)">
+            ${Math.round(gkProb * 100)}%
+          </text>
+          <rect x="${cx + 10}" y="${182 - shH}" width="38" height="${shH.toFixed(1)}" rx="4" fill="var(--secondary-accent)" />
+          <text x="${cx + 29}" y="${Math.max(98, 176 - shH).toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--ink-primary)">
+            ${counts[idx]}/${shooter.spatial_kicks}
+          </text>
+          <text x="${cx - 29}" y="197" text-anchor="middle" font-size="10" font-weight="600" fill="var(--ink-secondary)">Plano GK</text>
+          <text x="${cx + 29}" y="197" text-anchor="middle" font-size="10" font-weight="600" fill="var(--ink-secondary)">Chutes</text>
+        </g>
+      `;
+    }).join("");
+
+    svg.innerHTML = `
+      <title id="glove-goal-svg-title">${escapeHtml(shooter.player)}: cobertura do goleiro (${Math.round(snap.p[0] * 100)}% esquerda, ${Math.round(snap.p[1] * 100)}% centro, ${Math.round(snap.p[2] * 100)}% direita) versus chutes do batedor.</title>
+      <rect x="0" y="210" width="600" height="38" rx="6" fill="var(--accent-subtle)" />
+      <line x1="20" y1="210" x2="580" y2="210" stroke="var(--accent)" stroke-width="2.5" />
+      <path d="M 34 210 L 34 32 L 566 32 L 566 210" fill="none" stroke="var(--ink-primary)" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" />
+      <line x1="212" y1="36" x2="212" y2="206" stroke="var(--border-subtle)" stroke-dasharray="4 4" stroke-width="1" />
+      <line x1="388" y1="36" x2="388" y2="206" stroke="var(--border-subtle)" stroke-dasharray="4 4" stroke-width="1" />
+      ${lanesMarkup}
+      <circle cx="154" cy="229" r="5" fill="var(--accent)" />
+      <text x="165" y="233" font-size="11" font-weight="600" fill="var(--ink-primary)">Cobertura sugerida do goleiro</text>
+      <circle cx="366" cy="229" r="5" fill="var(--secondary-accent)" />
+      <text x="377" y="233" font-size="11" font-weight="600" fill="var(--ink-primary)">Chutes observados (${shooter.spatial_kicks})</text>
+    `;
+    if (titleEl) {
+      titleEl.textContent = `${shooter.player}: baliza L/C/R`;
+    }
+  }
+
+  function polarPoint(cx, cy, r, deg) {
+    const rad = ((deg - 90) * Math.PI) / 180;
+    return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)];
+  }
+
+  function ringSectorPath(cx, cy, rOuter, rInner, startDeg, endDeg) {
+    const largeArc = endDeg - startDeg > 180 ? 1 : 0;
+    const [ox1, oy1] = polarPoint(cx, cy, rOuter, startDeg);
+    const [ox2, oy2] = polarPoint(cx, cy, rOuter, endDeg);
+    const [ix1, iy1] = polarPoint(cx, cy, rInner, endDeg);
+    const [ix2, iy2] = polarPoint(cx, cy, rInner, startDeg);
+    return [
+      `M ${ox1.toFixed(2)} ${oy1.toFixed(2)}`,
+      `A ${rOuter} ${rOuter} 0 ${largeArc} 1 ${ox2.toFixed(2)} ${oy2.toFixed(2)}`,
+      `L ${ix1.toFixed(2)} ${iy1.toFixed(2)}`,
+      `A ${rInner} ${rInner} 0 ${largeArc} 0 ${ix2.toFixed(2)} ${iy2.toFixed(2)}`,
+      "Z",
+    ].join(" ");
+  }
+
+  function renderGloveWheelSvg(bands, lastTicket, lastZone) {
+    const svg = document.getElementById("glove-roulette-svg");
+    if (!svg) return;
+    const cx = 110;
+    const cy = 110;
+    const rOuter = 98;
+    const rInner = 46;
+    const zoneColors = {
+      L: "var(--accent)",
+      C: "var(--secondary-accent)",
+      R: "var(--warning-accent)",
+    };
+
+    let cursorDeg = 0;
+    const slicesMarkup = bands
+      .map((band) => {
+        if (band.pctInt <= 0) return "";
+        const spanDeg = (band.pctInt / 100) * 360;
+        const startDeg = cursorDeg;
+        const endDeg = cursorDeg + spanDeg;
+        cursorDeg = endDeg;
+        const isActive = lastZone === band.zone;
+        const opacity = isActive ? "0.95" : lastZone ? "0.42" : "0.78";
+        if (band.pctInt >= 100) {
+          return `<circle cx="${cx}" cy="${cy}" r="${(rOuter + rInner) / 2}" fill="none" stroke="${zoneColors[band.zone]}" stroke-width="${rOuter - rInner}" opacity="${opacity}" />`;
+        }
+        return `<path d="${ringSectorPath(cx, cy, rOuter, rInner, startDeg, endDeg)}" fill="${zoneColors[band.zone]}" opacity="${opacity}" stroke="var(--surface-card)" stroke-width="2" />`;
+      })
+      .join("");
+
+    const needleDeg = lastTicket !== null ? ((lastTicket + 0.5) / 100) * 360 : 0;
+    svg.style.setProperty("--needle-deg", `${needleDeg.toFixed(1)}deg`);
+
+    svg.innerHTML = `
+      ${slicesMarkup}
+      <circle cx="${cx}" cy="${cy}" r="${rOuter}" fill="none" stroke="var(--border-control)" stroke-width="1.5" />
+      <g class="roulette-needle">
+        <line x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy - 86}" stroke="var(--ink-primary)" stroke-width="3.5" stroke-linecap="round" />
+        <polygon points="${cx},${cy - 95} ${cx - 6},${cy - 80} ${cx + 6},${cy - 80}" fill="var(--focus-ring)" />
+      </g>
+    `;
+  }
+
+  function setupGloveSection(mart) {
+    const allShooters = Array.isArray(mart.shooter_scouting) ? mart.shooter_scouting : [];
+    const gridEl = document.getElementById("glove-shooter-grid");
+    const filterStarsBtn = document.getElementById("glove-filter-stars");
+    const filterAllBtn = document.getElementById("glove-filter-all");
+    const modeBtns = Array.from(document.querySelectorAll(".glove-mode-btn"));
+    const headerEl = document.getElementById("glove-card-header");
+    const kpisEl = document.getElementById("glove-plain-kpis");
+    const tipEl = document.getElementById("glove-locker-tip");
+    const bandsEl = document.getElementById("glove-roulette-bands");
+    const ticketEl = document.getElementById("glove-ticket-number");
+    const resultEl = document.getElementById("glove-spin-result");
+    const tallyEl = document.getElementById("glove-audit-tally");
+    const spinBtn = document.getElementById("glove-spin-btn");
+    const batchBtn = document.getElementById("glove-batch-btn");
+    const resetBtn = document.getElementById("glove-reset-btn");
+
+    if (!allShooters.length || !gridEl) return;
+
+    const adapterMap = new Map();
+    allShooters.forEach((s) => adapterMap.set(s.player, shooterToScenarioAdapter(s)));
+
+    const state = {
+      showAll: false,
+      selectedPlayer: allShooters[0].player,
+      modeTheta: 0,
+      lastTicket: null,
+      lastZone: null,
+      spinCounts: { L: 0, C: 0, R: 0 },
+      history: [],
+    };
+
+    function currentShooter() {
+      return allShooters.find((s) => s.player === state.selectedPlayer) || allShooters[0];
+    }
+
+    function clearSpins(promptText) {
+      state.lastTicket = null;
+      state.lastZone = null;
+      state.spinCounts = { L: 0, C: 0, R: 0 };
+      state.history = [];
+      if (ticketEl) ticketEl.textContent = "--";
+      if (resultEl) {
+        resultEl.classList.remove("is-spun");
+        resultEl.innerHTML =
+          promptText ||
+          "Clique em <strong>Sortear Canto Agora</strong> para receber o comando do proximo penalti.";
+      }
+    }
+
+    function renderChoiceCards() {
+      const visibleList = state.showAll
+        ? allShooters
+        : allShooters.filter((s) => Boolean(s.is_featured_glove_star));
+      if (!visibleList.some((s) => s.player === state.selectedPlayer) && visibleList.length) {
+        state.selectedPlayer = visibleList[0].player;
+      }
+
+      gridEl.innerHTML = visibleList
+        .map((s) => {
+          const isChecked = s.player === state.selectedPlayer;
+          const snap = evaluateCoachAtTheta(adapterMap.get(s.player), state.modeTheta);
+          const plain = formatPlayerSummaryPlain(s, snap);
+          return `
+            <label class="glove-star-card">
+              <input
+                type="radio"
+                name="glove_shooter"
+                value="${escapeHtml(s.player)}"
+                class="visually-hidden"
+                ${isChecked ? "checked" : ""}
+              >
+              <div class="glove-star-top">
+                <span class="glove-star-name">${escapeHtml(s.player)}</span>
+                <span class="glove-star-check">${isChecked ? "Selecionado" : s.is_featured_glove_star ? "Estrela" : `#${s.scouting_rank}`}</span>
+              </div>
+              <span class="glove-star-meta">${escapeHtml(plain.footLabel)} | Carreira: ${fmtPct(s.career_conversion_rate, 1)} gol (${fmtInt(s.spatial_kicks)} espaciais)</span>
+              <span class="glove-star-call">Principal: ${escapeHtml(plain.topLabel)}</span>
+            </label>
+          `;
+        })
+        .join("");
+
+      gridEl.querySelectorAll('input[name="glove_shooter"]').forEach((radio) => {
+        radio.addEventListener("change", () => {
+          state.selectedPlayer = radio.value;
+          clearSpins();
+          renderChoiceCards();
+          renderDossier();
+        });
+      });
+    }
+
+    function renderDossier() {
+      const shooter = currentShooter();
+      const snap = evaluateCoachAtTheta(adapterMap.get(shooter.player), state.modeTheta);
+      const plain = formatPlayerSummaryPlain(shooter, snap);
+      const bands = buildRouletteBands(snap.p);
+      const favCornerPt =
+        shooter.favorite_tactical_corner === "Opposite"
+          ? "Canto cruzado"
+          : shooter.favorite_tactical_corner === "Natural"
+            ? "Canto natural"
+            : "Meio";
+      const favDirPt = { L: "Esquerda", C: "Centro", R: "Direita" }[shooter.favorite_shot_zone];
+      const favShots =
+        shooter.favorite_shot_zone === "L"
+          ? shooter.shot_count_L
+          : shooter.favorite_shot_zone === "C"
+            ? shooter.shot_count_C
+            : shooter.shot_count_R;
+      const modeName =
+        state.modeTheta < 0.25
+          ? "Plano Blindado"
+          : state.modeTheta < 0.75
+            ? "Plano Equilibrado"
+            : "Caca ao Habito";
+
+      if (headerEl) {
+        headerEl.innerHTML = `
+          <div>
+            <h3>${escapeHtml(shooter.player)}</h3>
+            <p class="glove-card-sub">${escapeHtml(shooter.teams_list)} | ${escapeHtml(plain.footLabel)} | Carreira: ${fmtInt(shooter.career_total_kicks)} cobrancas (${fmtPct(shooter.career_conversion_rate, 1)} de conversao)</p>
+          </div>
+          <div class="glove-badges">
+            <span class="pill">${escapeHtml(modeName)}</span>
+            <span class="pill">Tendencia: ${escapeHtml(favCornerPt)}</span>
+          </div>
+        `;
+      }
+
+      if (kpisEl) {
+        const guaranteedDefense = state.modeTheta < 0.25 ? snap.vStar : snap.worstFloor;
+        const primaryLabel = state.modeTheta > 0.75 ? "Chance no habito historico" : "Defesa minima garantida";
+        const primaryValue = state.modeTheta > 0.75 ? fmtPct(snap.evVsEmp, 1) : fmtPct(snap.vStar, 1);
+        kpisEl.innerHTML = `
+          <div class="mini-stat">
+            <span>${primaryLabel}</span>
+            <strong>${primaryValue}</strong>
+            <small class="control-hint">Pior caso se ele mudar canto: ${fmtPct(guaranteedDefense, 1)}</small>
+          </div>
+          <div class="mini-stat">
+            <span>Onde ele costuma bater</span>
+            <strong>${escapeHtml(favDirPt)} (${favShots}/${shooter.spatial_kicks})</strong>
+            <small class="control-hint">E: ${shooter.shot_count_L} | C: ${shooter.shot_count_C} | D: ${shooter.shot_count_R}</small>
+          </div>
+          <div class="mini-stat">
+            <span>Foco principal da luva</span>
+            <strong>${escapeHtml(plain.topLabel)}</strong>
+            <small class="control-hint">E: ${Math.round(snap.p[0] * 100)}% | C: ${Math.round(snap.p[1] * 100)}% | D: ${Math.round(snap.p[2] * 100)}%</small>
+          </div>
+        `;
+      }
+
+      renderGloveGoalSvg(shooter, snap, state.lastZone);
+
+      if (tipEl) {
+        tipEl.innerHTML = buildGloveLockerTip(shooter, snap, state.modeTheta);
+      }
+
+      if (bandsEl) {
+        bandsEl.innerHTML = bands
+          .map((b) => {
+            const cls = [
+              "roulette-band-card",
+              state.lastZone === b.zone ? "is-band-active" : "",
+              b.pctInt === 0 ? "is-band-empty" : "",
+            ]
+              .filter(Boolean)
+              .join(" ");
+            return `
+              <div class="${cls}">
+                <span>${escapeHtml(b.label)} (${b.pctInt}%)</span>
+                <strong>${escapeHtml(b.rangeText)}</strong>
+                <small>${b.pctInt > 0 ? `${b.pctInt} de 100 numeros` : "Faixa zerada neste modo"}</small>
+              </div>
+            `;
+          })
+          .join("");
+      }
+
+      renderGloveWheelSvg(bands, state.lastTicket, state.lastZone);
+
+      if (tallyEl) {
+        const totalSpins = state.spinCounts.L + state.spinCounts.C + state.spinCounts.R;
+        if (totalSpins === 0) {
+          tallyEl.innerHTML = `<span>Auditoria de sorteios: <strong>0</strong> realizados nesta sessao. Metas ativas: E ${bands[0].pctInt}% | C ${bands[1].pctInt}% | D ${bands[2].pctInt}%.</span>`;
+        } else {
+          const share = (k) => fmtPct(state.spinCounts[k] / totalSpins, 1);
+          const recentPills = state.history
+            .slice(0, 8)
+            .map(
+              (item) =>
+                `<span class="tally-pill">#${String(item.ticket).padStart(2, "0")} ${item.zone === "L" ? "Esq" : item.zone === "C" ? "Cen" : "Dir"}</span>`
+            )
+            .join("");
+          tallyEl.innerHTML = `
+            <span>Total de sorteios: <strong>${totalSpins}</strong> | Esq: ${state.spinCounts.L} (${share("L")} vs ${bands[0].pctInt}%) | Cen: ${state.spinCounts.C} (${share("C")} vs ${bands[1].pctInt}%) | Dir: ${state.spinCounts.R} (${share("R")} vs ${bands[2].pctInt}%)</span>
+            <div class="tally-pills" aria-label="Ultimos numeros sorteados">${recentPills}</div>
+          `;
+        }
+      }
+    }
+
+    function executeSpinBatch(count = 1) {
+      const shooter = currentShooter();
+      const snap = evaluateCoachAtTheta(adapterMap.get(shooter.player), state.modeTheta);
+      const bands = buildRouletteBands(snap.p);
+      let lastDrawn = null;
+      let lastBand = null;
+
+      for (let i = 0; i < count; i++) {
+        const t = drawUniformTicket();
+        const b = resolveTicketBand(bands, t);
+        state.spinCounts[b.zone] += 1;
+        state.history.unshift({ ticket: t, zone: b.zone });
+        lastDrawn = t;
+        lastBand = b;
+      }
+      if (state.history.length > 40) state.history.length = 40;
+
+      state.lastTicket = lastDrawn;
+      state.lastZone = lastBand.zone;
+      const padded = String(lastDrawn).padStart(2, "0");
+      if (ticketEl) ticketEl.textContent = padded;
+      if (resultEl) {
+        resultEl.classList.add("is-spun");
+        const dirOrder = {
+          L: "SALTAR PARA A ESQUERDA (LADO DO BATEDOR)",
+          C: "SEGURAR NO CENTRO DA BALIZA",
+          R: "SALTAR PARA A DIREITA (LADO DO BATEDOR)",
+        }[lastBand.zone];
+        const prefix = count > 1 ? `Lote de ${count} sorteios concluido. Ultimo sinal ` : "Sinal sorteado ";
+        resultEl.innerHTML = `${prefix}<strong>#${padded}</strong> (faixa ${escapeHtml(lastBand.rangeText)}): <strong>${dirOrder}</strong> contra ${escapeHtml(shooter.player)}.`;
+      }
+      renderDossier();
+    }
+
+    if (filterStarsBtn && filterAllBtn) {
+      const syncFilter = (showAll) => {
+        state.showAll = showAll;
+        filterStarsBtn.setAttribute("aria-pressed", String(!showAll));
+        filterAllBtn.setAttribute("aria-pressed", String(showAll));
+        clearSpins();
+        renderChoiceCards();
+        renderDossier();
+      };
+      filterStarsBtn.addEventListener("click", () => syncFilter(false));
+      filterAllBtn.addEventListener("click", () => syncFilter(true));
+    }
+
+    modeBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.modeTheta = Number(btn.dataset.gloveTheta) || 0;
+        modeBtns.forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+        clearSpins("Modo de plano atualizado. Clique em <strong>Sortear Canto Agora</strong> para testar as novas faixas.");
+        renderChoiceCards();
+        renderDossier();
+      });
+    });
+
+    if (spinBtn) spinBtn.addEventListener("click", () => executeSpinBatch(1));
+    if (batchBtn) batchBtn.addEventListener("click", () => executeSpinBatch(10));
+    if (resetBtn) {
+      resetBtn.addEventListener("click", () => {
+        clearSpins();
+        renderDossier();
+      });
+    }
+
+    renderChoiceCards();
+    renderDossier();
+  }
+
+  function setupBridgeSection(mart) {
+    const scenarios = Array.isArray(mart.scenarios) ? mart.scenarios : [];
+    const shooters = Array.isArray(mart.shooter_scouting) ? mart.shooter_scouting : [];
+    const selectEl = document.getElementById("bridge-target-select");
+    const sliderEl = document.getElementById("bridge-theta-slider");
+    const outputEl = document.getElementById("bridge-theta-output");
+    const metaEl = document.getElementById("bridge-target-meta");
+    const breakLabelEl = document.getElementById("bridge-theta-break-label");
+    const critPresetBtn = document.getElementById("bridge-preset-crit");
+    const summaryEl = document.getElementById("bridge-live-summary");
+    const stepsEl = document.getElementById("bridge-steps-grid");
+    const presetBtns = Array.from(document.querySelectorAll(".bridge-preset-btn"));
+
+    if (!scenarios.length || !selectEl || !sliderEl) return;
+
+    const targetMap = new Map();
+    const curveCache = new Map();
+
+    const scenarioOptions = scenarios
+      .map((sc) => {
+        const key = `scenario:${sc.scenario_code}`;
+        targetMap.set(key, { kind: "scenario", record: sc, shooter: null });
+        curveCache.set(key, buildScenarioCurveData(sc));
+        return `<option value="${escapeHtml(key)}">${escapeHtml(sc.scenario_label)}</option>`;
+      })
+      .join("");
+
+    const shooterOptions = shooters
+      .map((sh) => {
+        const key = `shooter:${sh.player}`;
+        const adapted = shooterToScenarioAdapter(sh);
+        targetMap.set(key, { kind: "shooter", record: adapted, shooter: sh });
+        curveCache.set(key, buildScenarioCurveData(adapted));
+        return `<option value="${escapeHtml(key)}">${escapeHtml(sh.player)} (${sh.dominant_foot === "left-foot" ? "Canhoto" : "Destro"}, ${sh.spatial_kicks} espaciais)</option>`;
+      })
+      .join("");
+
+    selectEl.innerHTML = `
+      <optgroup label="Cenarios Taticos Coletivos (6)">${scenarioOptions}</optgroup>
+      <optgroup label="Batedores Individuais - Empirical Bayes alpha=5,0 (10)">${shooterOptions}</optgroup>
+    `;
+
+    function renderBridgeTranslation() {
+      const targetKey = selectEl.value;
+      const entry = targetMap.get(targetKey) || Array.from(targetMap.values())[0];
+      const rec = entry.record;
+      const curveInfo = curveCache.get(targetKey);
+      const theta = Number(sliderEl.value) || 0;
+      const snap = evaluateCoachAtTheta(rec, theta);
+      const critFixed = curveInfo.criticalTheta.toFixed(2);
+      const critComma = critFixed.replace(".", ",");
+      const thetaComma = theta.toFixed(2).replace(".", ",");
+
+      syncSliderVars(sliderEl);
+      if (metaEl) {
+        metaEl.textContent =
+          entry.kind === "scenario"
+            ? `Cenario BigQuery Gold | n = ${fmtInt(rec.sample_size)} cobrancas | alpha EB = ${Number(rec.eb_alpha).toFixed(1).replace(".", ",")}`
+            : `Dossie individual | Clube(s): ${entry.shooter.teams_list} | n = ${fmtInt(rec.sample_size)} espaciais (alpha = 5,0)`;
+      }
+      if (breakLabelEl) breakLabelEl.textContent = `Corte ${critComma}`;
+      if (critPresetBtn) {
+        critPresetBtn.dataset.bridgeTheta = critFixed;
+        critPresetBtn.textContent = `Corte (${critComma})`;
+      }
+
+      const isSafe = snap.floorDrop <= 0.005;
+      const regimeBadge = isSafe ? "Blindado (Minimax)" : "Inclinado (Com Risco)";
+      if (outputEl) {
+        outputEl.textContent = `${thetaComma} (${Math.round(theta * 100)}% | ${regimeBadge})`;
+      }
+      sliderEl.setAttribute(
+        "aria-valuetext",
+        `theta ${thetaComma}, V* ${fmtPct(snap.vStar, 2)}, piso ${fmtPct(snap.worstFloor, 2)}`
+      );
+
+      presetBtns.forEach((btn) => {
+        const isMatch = Math.abs(Number(btn.dataset.bridgeTheta) - theta) < 0.005;
+        btn.setAttribute("aria-pressed", String(isMatch));
+      });
+
+      const kicks10 = allocateIntegerShares(snap.p, 10);
+      const bands100 = buildRouletteBands(snap.p);
+      const activeDualZones = snap.qTilde
+        .map((qVal, idx) => (qVal > 0.01 ? `${ZONES[idx]} (${fmtPct(qVal, 1)})` : null))
+        .filter(Boolean)
+        .join(", ");
+      const exposedIdx = snap.cornerTrue.indexOf(Math.min(...snap.cornerTrue));
+      const exposedCornerPt = { L: "Esquerda", C: "Centro", R: "Direita" }[ZONES[exposedIdx]];
+      const diagRates = [snap.A[0][0], snap.A[1][1], snap.A[2][2]];
+      const bestTrainIdx = snap.p[1] >= 0.35 ? 1 : snap.p.indexOf(Math.max(...snap.p));
+      const trainFocus =
+        bestTrainIdx === 1
+          ? `Segurar o tempo de salto no Centro (${Math.round(snap.p[1] * 100)}% do plano, diag. ${fmtPct(diagRates[1], 1)}) para nao entregar chute facil no meio.`
+          : `Priorizar impulsao explosiva para ${ZONES[bestTrainIdx] === "L" ? "Esquerda" : "Direita"} (${kicks10[bestTrainIdx]} de cada 10 repeticoes, taxa no acerto ${fmtPct(diagRates[bestTrainIdx], 1)}).`;
+
+      if (summaryEl) {
+        summaryEl.textContent = `Resumo da Traducao (${rec.scenario_code}): em theta = ${thetaComma}, o goleiro executa ${kicks10[0]}E / ${kicks10[1]}C / ${kicks10[2]}D a cada 10 cobrancas, mantendo piso ${fmtPct(snap.worstFloor, 2)} (regime ${regimeBadge}).`;
+      }
+
+      if (stepsEl) {
+        const upliftPp = (snap.upliftVsNash * 100).toFixed(2).replace(".", ",");
+        const dropPp = (snap.floorDrop * 100).toFixed(2).replace(".", ",");
+        const stepsData = [
+          {
+            title: "Passo 1 | Restricao Primal-Dual -> Regra de Seguranca do Goleiro",
+            analyst: `Restricoes \\(\\sum_i p_i a_{ij}(\\theta) \\ge\\) <strong>${fmtPct(snap.vStar, 2)}</strong> ativas com suporte dual \\(\\tilde{q} =\\) <code>[${escapeHtml(activeDualZones)}]</code>. Piso sem exploracao: <strong>${fmtPct(snap.worstFloor, 2)}</strong> vs. expectativa no scouting <strong>${fmtPct(snap.evVsEmp, 2)}</strong>.`,
+            field: isSafe
+              ? `<strong>Ordem de vestiario:</strong> "Nenhuma brecha aberta. Mesmo que o batedor mude o canto de ultima hora, seu piso defensivo continua travado em ${fmtPct(snap.worstFloor, 2)}."`
+              : `<strong>Alerta tatico:</strong> "Voce ganha expectativa contra o habito, mas o canto <strong>${exposedCornerPt}</strong> fica exposto (cai ${dropPp} p.p. para ${fmtPct(snap.worstFloor, 2)} se o adversario perceber a leitura)."`,
+          },
+          {
+            title: "Passo 2 | Probabilidades p* -> Repertorio de 10 e Faixas 00-99",
+            analyst: `Vetor otimo continuo \\(p^*(\\theta) =\\) <code>(${fmtPct(snap.p[0], 1)} L, ${fmtPct(snap.p[1], 1)} C, ${fmtPct(snap.p[2], 1)} R)</code> com \\(\\sum p_i = 1\\).`,
+            field: `<strong>Sinal na garrafa:</strong> "Em 10 batidas: <strong>${kicks10[0]} Esquerda, ${kicks10[1]} Centro, ${kicks10[2]} Direita</strong>." Cartao numerico (00-99): E <code>${bands100[0].rangeText}</code> | C <code>${bands100[1].rangeText}</code> | D <code>${bands100[2].rangeText}</code>.`,
+          },
+          {
+            title: "Passo 3 | Fronteira Critica theta_crit -> Gatilho Pre-Jogo",
+            analyst: `Parametro atual \\(\\theta = ${thetaComma}\\) comparado ao corte \\(\\theta_{\\text{crit}} = ${critComma}\\). Ganho garantido sobre Nash puro: <strong>+${upliftPp} p.p.</strong>`,
+            field:
+              theta < curveInfo.criticalTheta
+                ? `<strong>Decisao pre-jogo:</strong> "Confianca ainda abaixo de ${critComma}. Nao compensa abandonar a roleta equilibrada: o pequeno ganho esperado nao paga a perda de piso."`
+                : `<strong>Decisao pre-jogo:</strong> "Confianca acima do corte ${critComma}. Dossie autorizado para inclinar os saltos para a <strong>${{ L: "Esquerda", C: "Centro", R: "Direita" }[snap.bestEmpCorner]}</strong>."`,
+          },
+          {
+            title: "Passo 4 | Matriz A e Taxa Central -> Rotina de Treino Semanal",
+            analyst: `Diagonais de acerto observadas/regularizadas: L = ${fmtPct(diagRates[0], 1)}, C = ${fmtPct(diagRates[1], 1)}, R = ${fmtPct(diagRates[2], 1)}; erro central sem centro coberto: L-C = ${fmtPct(snap.A[0][1], 1)}, R-C = ${fmtPct(snap.A[2][1], 1)}.`,
+            field: `<strong>Protocolo no CT:</strong> ${trainFocus}`,
+          },
+        ];
+
+        stepsEl.innerHTML = stepsData
+          .map(
+            (st) => `
+            <article class="bridge-step-card">
+              <h3 class="bridge-step-title">${st.title}</h3>
+              <div class="bridge-lens-pair">
+                <div class="bridge-lens-box bridge-lens-analyst">
+                  <span class="bridge-lens-kicker">Analista (Simplex LP)</span>
+                  <p>${st.analyst}</p>
+                </div>
+                <div class="bridge-arrow" aria-hidden="true">&rarr;</div>
+                <div class="bridge-lens-box bridge-lens-field">
+                  <span class="bridge-lens-kicker">Campo / Goleiro (Zero Jargao)</span>
+                  <p>${st.field}</p>
+                </div>
+              </div>
+            </article>
+          `
+          )
+          .join("");
+        renderMath(stepsEl);
+      }
+    }
+
+    selectEl.addEventListener("change", renderBridgeTranslation);
+    sliderEl.addEventListener("input", renderBridgeTranslation);
+    sliderEl.addEventListener("change", renderBridgeTranslation);
+    presetBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        sliderEl.value = btn.dataset.bridgeTheta || "0";
+        renderBridgeTranslation();
+      });
+    });
+
+    renderBridgeTranslation();
+    renderBridgeReconcileTable(mart);
+  }
+
+  function renderBridgeReconcileTable(mart) {
+    const tbody = document.getElementById("bridge-reconcile-body");
+    if (!tbody) return;
+    const scenarios = Array.isArray(mart.scenarios) ? mart.scenarios : [];
+    const curves = Array.isArray(mart.sensitivity_curves) ? mart.sensitivity_curves : [];
+
+    tbody.innerHTML = scenarios
+      .map((sc) => {
+        const checkpoints = [0.0, 0.5, 1.0].map((thetaVal) => {
+          const goldPt = curves.find(
+            (pt) =>
+              pt.scenario_code === sc.scenario_code && Math.abs(Number(pt.theta) - thetaVal) < 1e-4
+          );
+          const jsSnap = evaluateCoachAtTheta(sc, thetaVal);
+          const goldV = goldPt ? Number(goldPt.game_value_v_primal) : Number(sc.game_value_v_primal);
+          const diff = Math.abs(jsSnap.vStar - goldV);
+          return { goldV, jsV: jsSnap.vStar, diff };
+        });
+        const maxDiff = Math.max(...checkpoints.map((c) => c.diff));
+        const ok = maxDiff < 1e-5;
+        return `
+          <tr>
+            <th scope="row"><code>${escapeHtml(sc.scenario_code)}</code></th>
+            <td class="num">${fmtPct(checkpoints[0].goldV, 2)} / ${fmtPct(checkpoints[0].jsV, 2)}</td>
+            <td class="num">${fmtPct(checkpoints[1].goldV, 2)} / ${fmtPct(checkpoints[1].jsV, 2)}</td>
+            <td class="num">${fmtPct(checkpoints[2].goldV, 2)} / ${fmtPct(checkpoints[2].jsV, 2)}</td>
+            <td class="num"><code>${maxDiff.toExponential(2)}</code></td>
+            <td><span class="regime-pill ${ok ? "regime-pill-safe" : "regime-pill-alert"}">${ok ? "Conciliado" : "Divergente"}</span></td>
+          </tr>
+        `;
+      })
+      .join("");
   }
 
   async function loadMartData() {

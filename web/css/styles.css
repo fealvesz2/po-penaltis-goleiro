@@ -1051,9 +1051,16 @@
   }
 
   .mini-stat strong {
-    font-size: 1rem;
+    display: block;
+    margin-block-start: 0.15rem;
+    font-size: 1.05rem;
     color: var(--ink-primary);
     font-variant-numeric: tabular-nums;
+  }
+
+  .mini-stat small {
+    display: block;
+    margin-block-start: 0.2rem;
   }
 
   /* Responsive Tables (modern-web-guidance responsive-table pattern) */
@@ -1104,6 +1111,14 @@
     --label-4: "Mistura p*(0)";
     --label-5: "Ruptura theta_crit";
     --label-6: "Alvo (theta=1)";
+  }
+
+  .bridge-reconcile-table {
+    --label-2: "V*(0,0) Gold vs. JS";
+    --label-3: "V*(0,5) Gold vs. JS";
+    --label-4: "V*(1,0) Gold vs. JS";
+    --label-5: "Desvio Maximo";
+    --label-6: "Status Solver";
   }
 
   .data-table caption {
@@ -1697,6 +1712,502 @@
     color: var(--accent-hover);
   }
 
+  /* Section 5: Goalkeeper Glove Dossier (Zero Jargon) & Nash Roulette */
+  .glove-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1.25rem;
+    margin-block-end: 1.15rem;
+  }
+
+  .glove-toolbar-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+
+  .glove-stars-fieldset {
+    margin: 0 0 1.35rem;
+    padding: clamp(0.85rem, 0.75rem + 0.5vw, 1.2rem);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background-color: var(--surface-inset);
+    min-inline-size: 0;
+  }
+
+  .glove-stars-fieldset legend {
+    padding-inline: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--ink-primary);
+  }
+
+  .glove-shooter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14.5rem), 1fr));
+    gap: 0.85rem;
+  }
+
+  .glove-star-card {
+    position: relative;
+    container-type: inline-size;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.45rem;
+    padding: 0.9rem 1rem;
+    border-radius: var(--radius-md);
+    border: 2px solid var(--border-subtle);
+    background-color: var(--surface-card);
+    cursor: pointer;
+    min-block-size: 44px;
+    min-inline-size: 0;
+    transition: border-color 140ms ease, background-color 140ms ease;
+  }
+
+  .glove-star-card:hover {
+    border-color: var(--accent);
+  }
+
+  .glove-star-card:has(> input:checked) {
+    border-color: var(--accent);
+    background-color: var(--accent-subtle);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+
+  .glove-star-card:has(> input:focus-visible) {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .glove-star-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem 0.5rem;
+  }
+
+  .glove-star-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--ink-primary);
+  }
+
+  .glove-star-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    border: 1px solid var(--border-subtle);
+    background-color: var(--surface-inset);
+    color: var(--ink-secondary);
+  }
+
+  .glove-star-card:has(> input:checked) .glove-star-check {
+    background-color: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .glove-star-meta,
+  .glove-star-call {
+    font-size: 0.82rem;
+    color: var(--ink-secondary);
+    overflow-wrap: anywhere;
+  }
+
+  .glove-star-call {
+    font-weight: 600;
+    color: var(--ink-primary);
+  }
+
+  .glove-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.35rem;
+  }
+
+  @media (min-width: 960px) {
+    .glove-workspace {
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr);
+      align-items: start;
+    }
+  }
+
+  .glove-card-panel,
+  .glove-roulette-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+    min-inline-size: 0;
+  }
+
+  .glove-card-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.65rem 1rem;
+  }
+
+  .glove-card-header h3 {
+    margin-block-end: 0.2rem;
+    font-size: 1.25rem;
+  }
+
+  .glove-card-sub {
+    font-size: 0.875rem;
+    color: var(--ink-muted);
+    overflow-wrap: anywhere;
+  }
+
+  .glove-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .glove-plain-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 10.5rem), 1fr));
+    gap: 0.75rem;
+  }
+
+  .glove-goal-figure {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.55rem;
+    padding: 0.85rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle);
+    background-color: var(--surface-inset);
+  }
+
+  #glove-goal-svg {
+    display: block;
+    inline-size: 100%;
+    block-size: auto;
+    aspect-ratio: 600 / 248;
+  }
+
+  .glove-goal-caption {
+    font-size: 0.8rem;
+    color: var(--ink-muted);
+  }
+
+  .glove-locker-tip {
+    padding: 0.9rem 1rem;
+    border-radius: var(--radius-md);
+    border-inline-start: 4px solid var(--accent);
+    background-color: var(--accent-subtle);
+    color: var(--ink-primary);
+    font-size: 0.92rem;
+    line-height: 1.5;
+  }
+
+  .glove-roulette-bands {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.2rem), 1fr));
+    gap: 0.65rem;
+  }
+
+  .roulette-band-card {
+    padding: 0.65rem 0.75rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+    background-color: var(--surface-inset);
+    display: grid;
+    gap: 0.2rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .roulette-band-card.is-band-active {
+    border-color: var(--accent);
+    background-color: var(--accent-subtle);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+
+  .roulette-band-card.is-band-empty {
+    opacity: 0.68;
+  }
+
+  .roulette-band-card span {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--ink-secondary);
+  }
+
+  .roulette-band-card strong {
+    font-size: 1.02rem;
+    color: var(--ink-primary);
+  }
+
+  .roulette-band-card small {
+    font-size: 0.76rem;
+    color: var(--ink-muted);
+  }
+
+  .glove-roulette-stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+    align-items: center;
+  }
+
+  .glove-wheel-box {
+    position: relative;
+    inline-size: min(100%, 13.75rem);
+    margin-inline: auto;
+  }
+
+  #glove-roulette-svg {
+    display: block;
+    inline-size: 100%;
+    block-size: auto;
+    aspect-ratio: 1 / 1;
+  }
+
+  .roulette-needle {
+    transform-origin: 110px 110px;
+    transform: rotate(var(--needle-deg, 0deg));
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .roulette-needle {
+      transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+  }
+
+  .glove-wheel-readout {
+    position: absolute;
+    inset-block-start: 50%;
+    inset-inline-start: 50%;
+    transform: translate(-50%, -50%);
+    inline-size: 4.5rem;
+    block-size: 4.5rem;
+    border-radius: 50%;
+    border: 2px solid var(--border-control);
+    background-color: var(--surface-card);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    box-shadow: var(--shadow-card);
+    pointer-events: none;
+  }
+
+  .glove-wheel-readout span {
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+  }
+
+  .glove-wheel-readout strong {
+    font-size: 1.35rem;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-primary);
+  }
+
+  .glove-roulette-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.85rem;
+  }
+
+  .glove-spin-result {
+    padding: 0.85rem 1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle);
+    background-color: var(--surface-inset);
+    font-size: 0.94rem;
+    color: var(--ink-primary);
+  }
+
+  .glove-spin-result.is-spun {
+    border-color: var(--accent);
+    background-color: var(--accent-subtle);
+  }
+
+  .glove-spin-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+  }
+
+  .primary-cta-btn {
+    padding: 0.6rem 1.05rem;
+    min-block-size: 42px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--accent);
+    background-color: var(--accent);
+    color: var(--accent-ink);
+    font: inherit;
+    font-size: 0.92rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 140ms ease;
+  }
+
+  .primary-cta-btn:hover {
+    background-color: var(--accent-hover);
+  }
+
+  .glove-audit-tally {
+    padding: 0.75rem 0.9rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+    background-color: var(--surface-page);
+    font-size: 0.82rem;
+    color: var(--ink-secondary);
+    display: grid;
+    gap: 0.45rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tally-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .tally-pill {
+    padding: 0.15rem 0.45rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+    background-color: var(--surface-card);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ink-primary);
+  }
+
+  /* Section 6: Practical Bridge (Analyst LP -> Field Translator) & Excel Audit */
+  .bridge-simulator-card,
+  .bridge-audit-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.2rem;
+    margin-block-end: 1.4rem;
+  }
+
+  .bridge-audit-card .table-wrapper {
+    max-block-size: none;
+  }
+
+  .bridge-steps-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.9rem;
+  }
+
+  .bridge-step-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+    padding: 0.95rem 1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle);
+    background-color: var(--surface-inset);
+  }
+
+  .bridge-step-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--ink-primary);
+  }
+
+  .bridge-lens-pair {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: stretch;
+  }
+
+  @media (min-width: 780px) {
+    .bridge-lens-pair {
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    }
+  }
+
+  .bridge-lens-box {
+    padding: 0.8rem 0.9rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+    background-color: var(--surface-card);
+    display: grid;
+    gap: 0.3rem;
+    align-content: start;
+    min-inline-size: 0;
+  }
+
+  .bridge-lens-analyst {
+    border-inline-start: 4px solid var(--secondary-accent);
+  }
+
+  .bridge-lens-field {
+    border-inline-start: 4px solid var(--accent);
+  }
+
+  .bridge-lens-kicker {
+    font-size: 0.74rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink-muted);
+  }
+
+  .bridge-lens-box p {
+    font-size: 0.875rem;
+    color: var(--ink-secondary);
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+
+  .bridge-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--accent);
+    padding: 0.15rem;
+  }
+
+  .bridge-audit-dl {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15.5rem), 1fr));
+    gap: 0.85rem;
+  }
+
+  .bridge-audit-dl > div {
+    padding: 0.85rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+    background-color: var(--surface-inset);
+    min-inline-size: 0;
+  }
+
+  .bridge-audit-dl dt {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--ink-primary);
+    margin-block-end: 0.25rem;
+  }
+
+  .bridge-audit-dl dd {
+    font-size: 0.84rem;
+    color: var(--ink-secondary);
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+  }
+
   /* Roadmap & Footer */
   .roadmap-stub {
     padding: 1.25rem;
@@ -1762,7 +2273,17 @@
   .heat-bar,
   .sensitivity-chart-wrap,
   .chart-live-readout,
-  .theta-preset-btn {
+  .theta-preset-btn,
+  .glove-star-card,
+  .glove-goal-figure,
+  .glove-locker-tip,
+  .roulette-band-card,
+  .glove-spin-result,
+  .glove-audit-tally,
+  .primary-cta-btn,
+  .bridge-step-card,
+  .bridge-lens-box,
+  .bridge-audit-dl > div {
     border: 1px solid CanvasText;
     box-shadow: none;
   }
@@ -1774,13 +2295,17 @@
 
   .site-menu a[aria-current="page"],
   [role="tab"][aria-selected="true"]::after,
-  .theta-preset-btn[aria-pressed="true"] {
+  .theta-preset-btn[aria-pressed="true"],
+  .glove-star-card:has(> input:checked) .glove-star-check,
+  .primary-cta-btn {
     border-block-end-color: Highlight;
     color: HighlightText;
     background-color: Highlight;
   }
 
   .pipeline-step-btn[aria-pressed="true"],
+  .glove-star-card:has(> input:checked),
+  .roulette-band-card.is-band-active,
   input[type="range"].theta-slider:focus-visible {
     outline: 2px solid Highlight;
   }

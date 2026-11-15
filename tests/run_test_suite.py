@@ -1432,6 +1432,419 @@ const cdpPort = process.argv[2];
             shutil.rmtree(tmp_profile, ignore_errors=True)
 
 
+class TestE4T03GoalkeeperAndBridge(unittest.TestCase):
+    """Testes E4-T03: Visao de Luva (6 astros + Roleta), Ponte Analista->Goleiro e Excel Audit."""
+
+    def test_tc_e4_03a_glove_and_bridge_contracts_and_math(self) -> None:
+        html_text = (REPO_ROOT / "index.html").read_text(encoding="utf-8")
+        css_text = (REPO_ROOT / "web" / "css" / "styles.css").read_text(encoding="utf-8")
+        js_text = (REPO_ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
+
+        for fname, content in (("index.html", html_text), ("styles.css", css_text), ("app.js", js_text)):
+            self.assertNotIn("\u2014", content, f"Travessao longo proibido encontrado em {fname}.")
+
+        sec5_match = re.search(
+            r'<section id="sec-5-goleiro".*?</section>',
+            html_text,
+            flags=re.DOTALL,
+        )
+        self.assertIsNotNone(sec5_match, "Secao #sec-5-goleiro nao encontrada.")
+        sec5_html = sec5_match.group(0)
+        self.assertNotIn("Em implementacao na entrega E4-T03", sec5_html)
+
+        sec6_match = re.search(
+            r'<section id="sec-6-ponte".*?</section>',
+            html_text,
+            flags=re.DOTALL,
+        )
+        self.assertIsNotNone(sec6_match, "Secao #sec-6-ponte nao encontrada.")
+        sec6_html = sec6_match.group(0)
+        self.assertNotIn("Em implementacao na entrega E4-T03", sec6_html)
+
+        for marker in (
+            'id="glove-filter-stars"',
+            'id="glove-filter-all"',
+            'data-glove-theta="0"',
+            'class="glove-stars-fieldset"',
+            'id="glove-shooter-grid"',
+            'id="glove-goal-svg"',
+            'role="img"',
+            'id="glove-roulette-svg"',
+            'id="glove-spin-btn"',
+            'id="glove-spin-result"',
+            'aria-live="polite"',
+        ):
+            self.assertIn(marker, sec5_html, f"Marcador ausente em #sec-5-goleiro: {marker}")
+
+        for marker in (
+            'id="bridge-target-select"',
+            'id="bridge-theta-slider"',
+            'id="bridge-theta-output"',
+            'id="bridge-live-summary"',
+            'id="bridge-steps-grid"',
+            'id="bridge-reconcile-body"',
+            "validacao_excel_solver.xlsx",
+            "Modelo_Solver_LP",
+        ):
+            self.assertIn(marker, sec6_html, f"Marcador ausente em #sec-6-ponte: {marker}")
+
+        self.assertIn(".bridge-reconcile-table", css_text)
+        self.assertIn("--label-6:", css_text)
+        self.assertIn(".glove-star-card:has(> input:checked)", css_text)
+        self.assertIn("@media (forced-colors: active)", css_text)
+
+        node_bin = shutil.which("node")
+        if node_bin:
+            needed_fns = "\n".join(
+                _extract_js_function(js_text, name)
+                for name in (
+                    "extractMatrixAndEmpirical",
+                    "solveZeroSum3x3",
+                    "evaluateCoachAtTheta",
+                    "shooterToScenarioAdapter",
+                    "allocateIntegerShares",
+                    "buildRouletteBands",
+                    "resolveTicketBand",
+                )
+            )
+            mart_path = (REPO_ROOT / "data" / "processed" / "po_penalties_mart.json").as_posix()
+            node_check = f"""
+const fs = require("fs");
+const ZONES = ["L", "C", "R"];
+const ZONE_LABELS = {{ L: "Esquerda (L)", C: "Centro (C)", R: "Direita (R)" }};
+const escapeHtml = (s) => String(s);
+const fmtInt = (n) => String(n);
+{needed_fns}
+const mart = JSON.parse(fs.readFileSync({json.dumps(mart_path)}, "utf8"));
+const featured = mart.shooter_scouting.filter((s) => s.is_featured_glove_star).map((s) => s.player);
+let maxV0Diff = 0;
+let maxV50Diff = 0;
+let maxV100Diff = 0;
+let maxP50Diff = 0;
+let allBandsValid = true;
+for (const s of mart.shooter_scouting) {{
+  const ad = shooterToScenarioAdapter(s);
+  const r0 = evaluateCoachAtTheta(ad, 0.0);
+  const r5 = evaluateCoachAtTheta(ad, 0.5);
+  const r1 = evaluateCoachAtTheta(ad, 1.0);
+  maxV0Diff = Math.max(maxV0Diff, Math.abs(r0.vStar - s.game_value_v_nash));
+  maxV50Diff = Math.max(maxV50Diff, Math.abs(r5.vStar - s.game_value_v_theta50));
+  maxV100Diff = Math.max(maxV100Diff, Math.abs(r1.vStar - s.best_response_ev_theta1));
+  maxP50Diff = Math.max(
+    maxP50Diff,
+    Math.abs(r5.p[0] - s.gk_theta50_L),
+    Math.abs(r5.p[1] - s.gk_theta50_C),
+    Math.abs(r5.p[2] - s.gk_theta50_R)
+  );
+  for (const snap of [r0, r5, r1]) {{
+    const k10 = allocateIntegerShares(snap.p, 10);
+    if (k10.reduce((a, b) => a + b, 0) !== 10) allBandsValid = false;
+    const bands = buildRouletteBands(snap.p);
+    const seen = new Set();
+    for (let t = 0; t < 100; t++) {{
+      const picked = resolveTicketBand(bands, t);
+      if (!picked || picked.pctInt <= 0) allBandsValid = false;
+      seen.add(t);
+    }}
+    if (seen.size !== 100) allBandsValid = false;
+    if (bands.reduce((a, b) => a + b.pctInt, 0) !== 100) allBandsValid = false;
+  }}
+}}
+console.log(JSON.stringify({{ featured, totalShooters: mart.shooter_scouting.length, maxV0Diff, maxV50Diff, maxV100Diff, maxP50Diff, allBandsValid }}));
+"""
+            run = subprocess.run(
+                [node_bin, "-e", node_check],
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=True,
+            )
+            stats = json.loads(run.stdout)
+            self.assertEqual(
+                stats["featured"],
+                ["Harry Kane", "Kylian Mbappé", "Mohamed Salah", "Bruno Fernandes", "Erling Haaland", "Cole Palmer"],
+            )
+            self.assertEqual(stats["totalShooters"], 10)
+            self.assertTrue(stats["allBandsValid"])
+            self.assertLess(stats["maxV0Diff"], 1e-5)
+            self.assertLess(stats["maxV50Diff"], 1e-5)
+            self.assertLess(stats["maxV100Diff"], 1e-5)
+            self.assertLess(stats["maxP50Diff"], 1e-5)
+
+    def test_tc_e4_03b_browser_glove_roulette_and_bridge_interactive(self) -> None:
+        if TEST_MODE == "fast":
+            self.skipTest("Modo fast ativo: pulando verificacao em navegador headless.")
+
+        browser_bin = _find_chromium_binary()
+        node_bin = shutil.which("node")
+        if not browser_bin or not node_bin:
+            self.skipTest("Chrome/Edge ou Node indisponivel neste ambiente.")
+
+        class _ReusableServer(socketserver.ThreadingTCPServer):
+            allow_reuse_address = True
+
+        httpd = _ReusableServer(("127.0.0.1", 0), _QuietRepoHTTPHandler)
+        port = httpd.server_address[1]
+        server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        server_thread.start()
+
+        tmp_profile = tempfile.mkdtemp(prefix="po-e4t03-chrome-")
+        proc = subprocess.Popen(
+            [
+                browser_bin,
+                "--headless=new",
+                "--disable-gpu",
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--remote-debugging-port=0",
+                f"--user-data-dir={tmp_profile}",
+                "about:blank",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+        try:
+            port_file = Path(tmp_profile) / "DevToolsActivePort"
+            for _ in range(80):
+                if port_file.exists() and port_file.read_text(encoding="utf-8").strip():
+                    break
+                time.sleep(0.1)
+            self.assertTrue(port_file.exists(), "DevToolsActivePort nao foi criado pelo browser headless.")
+            cdp_port = int(port_file.read_text(encoding="utf-8").strip().splitlines()[0])
+
+            node_script = r"""
+const url = process.argv[1];
+const cdpPort = process.argv[2];
+
+(async () => {
+  const targets = await (await fetch(`http://127.0.0.1:${cdpPort}/json`)).json();
+  const pageTarget = targets.find((t) => t.type === "page") || targets[0];
+  const ws = new WebSocket(pageTarget.webSocketDebuggerUrl);
+  let seq = 0;
+  const pending = new Map();
+  const events = [];
+
+  const send = (method, params = {}) =>
+    new Promise((resolve, reject) => {
+      const id = ++seq;
+      pending.set(id, { resolve, reject });
+      ws.send(JSON.stringify({ id, method, params }));
+    });
+
+  ws.addEventListener("message", (ev) => {
+    const msg = JSON.parse(ev.data);
+    if (msg.id && pending.has(msg.id)) {
+      const { resolve, reject } = pending.get(msg.id);
+      pending.delete(msg.id);
+      if (msg.error) reject(new Error(JSON.stringify(msg.error)));
+      else resolve(msg.result);
+    } else if (msg.method) {
+      events.push(msg);
+    }
+  });
+
+  await new Promise((r) => ws.addEventListener("open", r));
+  await send("Page.enable");
+  await send("Runtime.enable");
+  await send("Log.enable");
+  await send("Network.enable");
+
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: 1440,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await send("Page.navigate", { url });
+
+  for (let i = 0; i < 40; i++) {
+    const ready = await send("Runtime.evaluate", {
+      returnByValue: true,
+      expression: `document.querySelectorAll('#glove-shooter-grid .glove-star-card').length === 6 && document.querySelectorAll('#bridge-reconcile-body tr').length === 6`,
+    });
+    if (ready.result.value) break;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+
+  const state = await send("Runtime.evaluate", {
+    returnByValue: true,
+    expression: `(() => {
+      const starsDefault = Array.from(document.querySelectorAll('#glove-shooter-grid .glove-star-name')).map((el) => el.textContent.trim());
+      const sec5Text = document.getElementById("sec-5-goleiro").textContent;
+      const jargonHits = ["simplex", "minimax", "empirical bayes", "dualidade", "payoff"].filter((w) =>
+        new RegExp("\\\\b" + w + "\\\\b", "i").test(sec5Text)
+      );
+
+      document.getElementById("glove-filter-all").click();
+      const allCount = document.querySelectorAll('#glove-shooter-grid .glove-star-card').length;
+      document.getElementById("glove-filter-stars").click();
+
+      const palmerRadio = document.querySelector('input[name="glove_shooter"][value="Cole Palmer"]');
+      palmerRadio.click();
+      document.querySelector('[data-glove-theta="0.5"]').click();
+      const palmer50Bands = document.getElementById("glove-roulette-bands").textContent;
+      const palmerWheelCircles = document.querySelectorAll("#glove-roulette-svg circle").length;
+
+      document.querySelector('input[name="glove_shooter"][value="Harry Kane"]').click();
+      document.querySelector('[data-glove-theta="0"]').click();
+      document.getElementById("glove-spin-btn").click();
+      const afterOneSpin = {
+        ticket: document.getElementById("glove-ticket-number").textContent,
+        resultText: document.getElementById("glove-spin-result").textContent,
+        tallyText: document.getElementById("glove-audit-tally").textContent,
+        activeBandCount: document.querySelectorAll(".roulette-band-card.is-band-active").length,
+      };
+      document.getElementById("glove-batch-btn").click();
+      const afterBatchTally = document.getElementById("glove-audit-tally").textContent;
+      document.getElementById("glove-reset-btn").click();
+      const afterResetTally = document.getElementById("glove-audit-tally").textContent;
+
+      const bridgeSel = document.getElementById("bridge-target-select");
+      const bridgeOpts = bridgeSel.options.length;
+      const reconcileRows = document.querySelectorAll("#bridge-reconcile-body tr").length;
+      const reconcileText = document.getElementById("bridge-reconcile-body").textContent;
+
+      bridgeSel.value = "shooter:Erling Haaland";
+      bridgeSel.dispatchEvent(new Event("change", { bubbles: true }));
+      const bridgeSlider = document.getElementById("bridge-theta-slider");
+      bridgeSlider.value = "0.5";
+      bridgeSlider.dispatchEvent(new Event("input", { bubbles: true }));
+      const bridgeHaaland50 = {
+        summary: document.getElementById("bridge-live-summary").textContent,
+        stepsCount: document.querySelectorAll("#bridge-steps-grid .bridge-step-card").length,
+        stepsText: document.getElementById("bridge-steps-grid").textContent,
+      };
+
+      return {
+        starsDefault,
+        jargonHits,
+        allCount,
+        palmer50Bands,
+        palmerWheelCircles,
+        afterOneSpin,
+        afterBatchTally,
+        afterResetTally,
+        bridgeOpts,
+        reconcileRows,
+        reconcileText,
+        bridgeHaaland50,
+      };
+    })()`,
+  });
+
+  const overflow1440 = await send("Runtime.evaluate", {
+    returnByValue: true,
+    expression: `document.documentElement.scrollWidth > document.documentElement.clientWidth`,
+  });
+
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: 390,
+    height: 844,
+    deviceScaleFactor: 1,
+    mobile: true,
+  });
+  await new Promise((r) => setTimeout(r, 250));
+  const overflow390 = await send("Runtime.evaluate", {
+    returnByValue: true,
+    expression: `document.documentElement.scrollWidth > document.documentElement.clientWidth`,
+  });
+
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: 320,
+    height: 640,
+    deviceScaleFactor: 1,
+    mobile: true,
+  });
+  await new Promise((r) => setTimeout(r, 250));
+  const m320 = await send("Runtime.evaluate", {
+    returnByValue: true,
+    expression: `({
+      overflow320: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      sw320: document.documentElement.scrollWidth,
+    })`,
+  });
+
+  const consoleErrors = events.filter(
+    (e) => e.method === "Runtime.consoleAPICalled" && ["error", "warning"].includes(e.params.type)
+  );
+  const exceptions = events.filter((e) => e.method === "Runtime.exceptionThrown");
+  const logErrors = events.filter(
+    (e) => e.method === "Log.entryAdded" && ["error", "warning"].includes(e.params.entry.level)
+  );
+  const httpErrors = events.filter(
+    (e) => e.method === "Network.responseReceived" && e.params.response.status >= 400
+  );
+  const netFails = events.filter((e) => e.method === "Network.loadingFailed");
+
+  console.log(
+    JSON.stringify({
+      state: state.result.value,
+      overflow1440: overflow1440.result.value,
+      overflow390: overflow390.result.value,
+      m320: m320.result.value,
+      consoleErrors,
+      exceptions,
+      logErrors,
+      httpErrors,
+      netFails,
+    })
+  );
+  ws.close();
+})();
+"""
+            node_run = subprocess.run(
+                [node_bin, "-e", node_script, f"http://127.0.0.1:{port}/index.html", str(cdp_port)],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=True,
+            )
+            report = json.loads(node_run.stdout)
+
+            self.assertEqual(report["consoleErrors"], [], f"Console errors: {report['consoleErrors']}")
+            self.assertEqual(report["exceptions"], [], f"JS exceptions: {report['exceptions']}")
+            self.assertEqual(report["logErrors"], [], f"Browser log errors: {report['logErrors']}")
+            self.assertEqual(report["httpErrors"], [], f"HTTP >=400 errors: {report['httpErrors']}")
+            self.assertEqual(report["netFails"], [], f"Network failures: {report['netFails']}")
+
+            st = report["state"]
+            self.assertEqual(
+                st["starsDefault"],
+                ["Harry Kane", "Kylian Mbappé", "Mohamed Salah", "Bruno Fernandes", "Erling Haaland", "Cole Palmer"],
+            )
+            self.assertEqual(st["jargonHits"], [], f"Jargao tecnico vazou para Secao 5: {st['jargonHits']}")
+            self.assertEqual(st["allCount"], 10)
+            self.assertIn("100%", st["palmer50Bands"])
+            self.assertIn("00 a 99", st["palmer50Bands"])
+            self.assertGreaterEqual(st["palmerWheelCircles"], 2)
+
+            self.assertRegex(st["afterOneSpin"]["ticket"], r"^\d{2}$")
+            self.assertIn("Sinal sorteado", st["afterOneSpin"]["resultText"])
+            self.assertIn("Total de sorteios: 1", st["afterOneSpin"]["tallyText"])
+            self.assertEqual(st["afterOneSpin"]["activeBandCount"], 1)
+            self.assertIn("Total de sorteios: 11", st["afterBatchTally"])
+            self.assertIn("0 realizados", st["afterResetTally"])
+
+            self.assertEqual(st["bridgeOpts"], 16)
+            self.assertEqual(st["reconcileRows"], 6)
+            self.assertIn("Conciliado", st["reconcileText"])
+            self.assertNotIn("Divergente", st["reconcileText"])
+            self.assertEqual(st["bridgeHaaland50"]["stepsCount"], 4)
+            self.assertIn("91,4%", st["bridgeHaaland50"]["stepsText"])
+
+            self.assertFalse(report["overflow1440"])
+            self.assertFalse(report["overflow390"])
+            self.assertFalse(report["m320"]["overflow320"], f"Overflow em 320px: {report['m320']}")
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+            with contextlib.suppress(Exception):
+                proc.terminate()
+                proc.wait(timeout=5)
+            shutil.rmtree(tmp_profile, ignore_errors=True)
+
+
 STAGE_REGISTRY: dict[str, list[type[unittest.TestCase]]] = {
     "E1": [TestE1Governance],
     "E2-T01": [TestE2T01BronzeIngestion],
@@ -1444,7 +1857,8 @@ STAGE_REGISTRY: dict[str, list[type[unittest.TestCase]]] = {
     "E3": [TestE3T01GoldNashSolver, TestE3T02SensitivityScouting, TestE3T03DocumentationAndXlsm],
     "E4-T01": [TestE4T01PortfolioCore],
     "E4-T02": [TestE4T02CoachDashboard],
-    "E4": [TestE4T01PortfolioCore, TestE4T02CoachDashboard],
+    "E4-T03": [TestE4T03GoalkeeperAndBridge],
+    "E4": [TestE4T01PortfolioCore, TestE4T02CoachDashboard, TestE4T03GoalkeeperAndBridge],
     "ALL": [
         TestE1Governance,
         TestE2T01BronzeIngestion,
@@ -1455,6 +1869,7 @@ STAGE_REGISTRY: dict[str, list[type[unittest.TestCase]]] = {
         TestE3T03DocumentationAndXlsm,
         TestE4T01PortfolioCore,
         TestE4T02CoachDashboard,
+        TestE4T03GoalkeeperAndBridge,
     ],
 }
 

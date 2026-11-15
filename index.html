@@ -664,15 +664,118 @@
     <section id="sec-5-goleiro" class="page-section">
       <div class="container">
         <div class="section-header">
-          <span class="section-kicker">Secao 5 | Proxima Entrega E4-T03</span>
-          <h2>Visao de Luva do Goleiro: Dossies de Estrelas e Roleta de Nash</h2>
+          <span class="section-kicker">Secao 5 | Visao Enxuta de Luva do Goleiro (E4-T03)</span>
+          <h2>Cartoes de Vestiario (Zero Jargao) e Roleta de Defesa</h2>
           <p class="section-intro">
-            Cartoes de vestiario sem jargao matematico para os batedores selecionados (Harry Kane, Kylian Mbappe, Mohamed Salah, Bruno Fernandes, Erling Haaland e Cole Palmer) com gerador aleatorizado calibrado por \(p^*\).
+            Na hora da cobranca, o goleiro precisa de clareza imediata sem equacoes. Escolha o batedor para ver o cartao visual da baliza e sorteie o canto na Roleta de Luva (00 a 99) sem deixar padroes obvios.
           </p>
         </div>
-        <div class="roadmap-stub">
-          <span class="pill">Em implementacao na entrega E4-T03</span>
-          <p>Os 10 perfis com suavizacao Empirical Bayes (\(\alpha = 5{,}0\)) ja residem em <code>mart_shooter_scouting</code> dentro de <code>po_penalties_mart.json</code>.</p>
+
+        <div class="glove-toolbar">
+          <div class="glove-toolbar-group" role="group" aria-label="Filtro de batedores exibidos">
+            <button type="button" id="glove-filter-stars" class="theta-preset-btn" aria-pressed="true">
+              6 Estrelas da Luva
+            </button>
+            <button type="button" id="glove-filter-all" class="theta-preset-btn" aria-pressed="false">
+              Ranking Completo (10)
+            </button>
+          </div>
+
+          <div class="glove-toolbar-group" role="group" aria-label="Estilo do plano de defesa">
+            <button type="button" class="glove-mode-btn theta-preset-btn" data-glove-theta="0" aria-pressed="true">
+              Plano Blindado (Sem Brecha)
+            </button>
+            <button type="button" class="glove-mode-btn theta-preset-btn" data-glove-theta="0.5" aria-pressed="false">
+              Plano Equilibrado (Meio-Termo)
+            </button>
+            <button type="button" class="glove-mode-btn theta-preset-btn" data-glove-theta="1" aria-pressed="false">
+              Cacar Habito (Historico)
+            </button>
+          </div>
+        </div>
+
+        <fieldset class="glove-stars-fieldset">
+          <legend>Selecione o batedor para abrir o cartao de vestiario:</legend>
+          <div id="glove-shooter-grid" class="glove-shooter-grid">
+            <!-- Hydrated shooter choice cards (6 stars by default) -->
+          </div>
+        </fieldset>
+
+        <div id="glove-dossier-stage" class="glove-workspace">
+          <article class="surface-card glove-card-panel">
+            <header id="glove-card-header" class="glove-card-header">
+              <!-- Hydrated player header & badges -->
+            </header>
+
+            <div id="glove-plain-kpis" class="glove-plain-kpis">
+              <!-- Hydrated 3 plain-language vestiario KPIs -->
+            </div>
+
+            <figure class="glove-goal-figure">
+              <svg
+                id="glove-goal-svg"
+                viewBox="0 0 600 248"
+                role="img"
+                aria-labelledby="glove-goal-svg-title"
+              >
+                <title id="glove-goal-svg-title">Cartao visual da baliza por canto do chute e cobertura do goleiro</title>
+              </svg>
+              <figcaption id="glove-goal-caption" class="glove-goal-caption">
+                Referencia da imagem: visao padrao de frente para o chute (Esquerda, Centro e Direita do batedor).
+              </figcaption>
+            </figure>
+
+            <div id="glove-locker-tip" class="glove-locker-tip">
+              <!-- Hydrated plain dressing-room cue -->
+            </div>
+          </article>
+
+          <article class="surface-card glove-roulette-panel">
+            <div class="coach-panel-head">
+              <h3>Roleta de Luva (Sinal de Garrafa / Pulso 00 a 99)</h3>
+              <p>Para nao ficar previsivel antes do apito, sorteie um numero de 00 a 99 e siga a faixa indicada para este batedor.</p>
+            </div>
+
+            <div id="glove-roulette-bands" class="glove-roulette-bands">
+              <!-- Hydrated 00-99 ticket intervals -->
+            </div>
+
+            <div class="glove-roulette-stage">
+              <div class="glove-wheel-box">
+                <svg
+                  id="glove-roulette-svg"
+                  viewBox="0 0 220 220"
+                  aria-hidden="true"
+                ></svg>
+                <div class="glove-wheel-readout" aria-hidden="true">
+                  <span>Numero</span>
+                  <strong id="glove-ticket-number">--</strong>
+                </div>
+              </div>
+
+              <div class="glove-roulette-controls">
+                <div id="glove-spin-result" class="glove-spin-result" aria-live="polite">
+                  Clique em <strong>Sortear Canto Agora</strong> para receber o comando do proximo penalti.
+                </div>
+
+                <div class="glove-spin-actions">
+                  <button type="button" id="glove-spin-btn" class="primary-cta-btn">
+                    Sortear Canto Agora
+                  </button>
+                  <button type="button" id="glove-batch-btn" class="theta-preset-btn">
+                    Simular 10 Sorteios
+                  </button>
+                  <button type="button" id="glove-reset-btn" class="theta-preset-btn">
+                    Zerar Historico
+                  </button>
+                </div>
+
+                <div id="glove-audit-tally" class="glove-audit-tally">
+                  <!-- Hydrated empirical vs target spin tally -->
+                </div>
+              </div>
+            </div>
+          </article>
         </div>
       </div>
     </section>
@@ -680,16 +783,108 @@
     <section id="sec-6-ponte" class="page-section roadmap-band">
       <div class="container">
         <div class="section-header">
-          <span class="section-kicker">Secao 6 | Proxima Entrega E4-T03</span>
-          <h2>Ponte Pratica: Simulador de Traducao Analista &rarr; Campo</h2>
+          <span class="section-kicker">Secao 6 | Ponte Pratica: Traducao e Auditoria (E4-T03)</span>
+          <h2>Ponte Pratica: Simulador de Traducao (Analista &rarr; Goleiro)</h2>
           <p class="section-intro">
-            Conversao passo a passo das restricoes do modelo Simplex LP em decisoes operacionais auditadas junto ao suplemento Excel Solver e aos protocolos de treino semanal.
+            Conversao passo a passo das restricoes do Simplex LP para instrucoes objetivas de vestiario e rotinas de treino, ao lado da conciliacao numerica com o suplemento Excel Solver (<code>docs/validacao_excel_solver.xlsx</code>).
           </p>
         </div>
-        <div class="roadmap-stub">
-          <span class="pill">Em implementacao na entrega E4-T03</span>
-          <p>Integracao planejada com os resultados de validacao cruzada de <code>docs/validacao_excel_solver.xlsx</code>.</p>
-        </div>
+
+        <article class="surface-card bridge-simulator-card">
+          <fieldset class="coach-controls-fieldset">
+            <legend>Parametros do Simulador de Traducao Analista &rarr; Campo</legend>
+            <div class="coach-controls-grid">
+              <div class="control-group coach-select-group">
+                <label for="bridge-target-select">Alvo da traducao (Cenario coletivo ou batedor individual):</label>
+                <select id="bridge-target-select" name="bridge_target">
+                  <option value="scenario:C1_GLOBAL">Cenario: 1. Global (Todas as Cobrancas Espaciais)</option>
+                </select>
+                <span class="control-hint" id="bridge-target-meta">Selecione qualquer dos 6 cenarios taticos ou dos 10 perfis individuais.</span>
+              </div>
+
+              <div class="control-group coach-slider-group">
+                <div class="slider-header">
+                  <label for="bridge-theta-slider">Nivel de confianca aplicado no plano (\(\theta\)):</label>
+                  <output id="bridge-theta-output" for="bridge-theta-slider" class="theta-output num">0,00 (Blindado)</output>
+                </div>
+                <input
+                  type="range"
+                  id="bridge-theta-slider"
+                  name="bridge_theta"
+                  class="theta-slider"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0"
+                  aria-describedby="bridge-theta-hint"
+                >
+                <div class="slider-scale" aria-hidden="true">
+                  <span>0,00 (Sem Brecha)</span>
+                  <span id="bridge-theta-break-label">Corte --</span>
+                  <span>1,00 (Habito Total)</span>
+                </div>
+                <span id="bridge-theta-hint" class="control-hint">
+                  Ajuste \(\theta\) para comparar o rigor matematico do analista (esquerda) com a ordem falada ao goleiro (direita).
+                </span>
+                <div class="theta-presets" role="group" aria-label="Atalhos de confianca para traducao">
+                  <button type="button" class="bridge-preset-btn theta-preset-btn" data-bridge-theta="0" aria-pressed="true">Nash (0,00)</button>
+                  <button type="button" class="bridge-preset-btn theta-preset-btn" data-bridge-theta="0.5" aria-pressed="false">Hibrido (0,50)</button>
+                  <button type="button" class="bridge-preset-btn theta-preset-btn" id="bridge-preset-crit" data-bridge-theta="0.69" aria-pressed="false">Corte (0,69)</button>
+                  <button type="button" class="bridge-preset-btn theta-preset-btn" data-bridge-theta="1" aria-pressed="false">Scouting (1,00)</button>
+                </div>
+              </div>
+            </div>
+          </fieldset>
+
+          <p id="bridge-live-summary" class="chart-live-readout" aria-live="polite">
+            Sincronizando traducao do modelo Simplex...
+          </p>
+
+          <div id="bridge-steps-grid" class="bridge-steps-grid">
+            <!-- Hydrated 4-step Analyst LP -> Field Goalkeeper cards -->
+          </div>
+        </article>
+
+        <article class="surface-card bridge-audit-card">
+          <div class="coach-panel-head">
+            <h3>6.2 Auditoria Cruzada: Motor Browser (Simplex) vs. BigQuery Gold &amp; Excel Solver</h3>
+            <p>Verificacao direta das celulas da aba <code>Modelo_Solver_LP</code> e dos 66 pontos de <code>Curva_Sensibilidade</code> em <code>docs/validacao_excel_solver.xlsx</code>.</p>
+          </div>
+
+          <dl class="bridge-audit-dl">
+            <div>
+              <dt>Parametro e Matriz Linear (Excel)</dt>
+              <dd>Celula <code>B3</code> define \(\theta \in [0, 1]\) e alimenta <code>G6:I8</code> via <code>=$B$3*$F$6+(1-$B$3)*B6</code>.</dd>
+            </div>
+            <div>
+              <dt>Decisao Primal e Objetivo</dt>
+              <dd>Variaveis <code>J6:J8</code> (<code>p*</code>) e <code>J11</code> (<code>V*</code>); Objetivo: <code>Max J11</code> em <strong>Simplex LP</strong>.</dd>
+            </div>
+            <div>
+              <dt>Restricoes e Dualidade Forte</dt>
+              <dd><code>J9 = SUM(J6:J8) = 1</code>, <code>G10:I10 &gt;= J11</code> (<code>SUMPRODUCT</code>) e checagem <code>ABS(G11-H11) &lt; 1e-9</code>.</dd>
+            </div>
+          </dl>
+
+          <div tabindex="0" role="region" aria-labelledby="bridge-reconcile-caption" class="table-wrapper">
+            <table class="data-table bridge-reconcile-table">
+              <caption id="bridge-reconcile-caption">Reconciliacao ao vivo do valor do jogo V*(theta) entre Gold/Excel Solver e motor Simplex JavaScript nos 6 cenarios</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Cenario Gold</th>
+                  <th scope="col" class="num">V*(0,0) Gold vs. JS</th>
+                  <th scope="col" class="num">V*(0,5) Gold vs. JS</th>
+                  <th scope="col" class="num">V*(1,0) Gold vs. JS</th>
+                  <th scope="col" class="num">Desvio Maximo</th>
+                  <th scope="col">Status Solver</th>
+                </tr>
+              </thead>
+              <tbody id="bridge-reconcile-body">
+                <!-- Hydrated live reconciliation across 6 scenarios -->
+              </tbody>
+            </table>
+          </div>
+        </article>
       </div>
     </section>
 
