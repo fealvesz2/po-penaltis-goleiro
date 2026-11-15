@@ -7,14 +7,22 @@ LOCATION = "southamerica-east1"
 
 SILVER_ENRICH_DDL = f"""
 CREATE OR REPLACE TABLE `{SILVER_TABLE}`
-CLUSTER BY has_spatial_coords, body_part_clean, detailed_outcome, position_group
+CLUSTER BY has_spatial_coords, outcome, position_group
 OPTIONS (
   description = "Camada Silver Enriquecida (E2-T03): 15.726 penaltis de futebol e 1.377 espaciais com detailed_outcome (143 defesas vs 58 fora/trave), gk_zone e body_part_clean (996 destros e 381 canhotos)",
   labels = [("datacloud", "antigravity"), ("domain", "po"), ("layer", "silver")]
 ) AS
 WITH base AS (
   SELECT
-    * EXCEPT(_silver_loaded_at)
+    match_id, match_date, competition_stage, home_team, away_team,
+    home_score, away_score, penalty_type, period, minute, second,
+    team_shooting, player, position, shot_type, outcome, technique,
+    body_part, xg, player_location_x, player_location_y,
+    end_location_x, end_location_y, end_location_z,
+    goalkeeper_name, goalkeeper_id, gkCoordinates,
+    has_spatial_coords, goal_orientation_sign, shot_y_norm,
+    gk_x_raw, gk_y_raw, gk_y_norm, shot_zone,
+    is_clutch_situational, is_clutch_macro, position_group
   FROM `{SILVER_TABLE}`
 ),
 player_known_foot AS (
